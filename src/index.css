@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AWS Color Theme Variables */
+:root {
+  --aws-squid-ink: #232F3E;
+  --aws-smile-orange: #FF9900;
+  --aws-anchor: #1A1A1A;
+  --aws-deep-squid-ink: #161E2D;
+}
+
+/* Base Styles */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: #F5F7FA;
+  color: #232F3E;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Severity Colors */
+.severity-critical {
+  @apply bg-red-100 text-red-800 border-red-200;
+}
+
+.severity-high {
+  @apply bg-orange-100 text-orange-800 border-orange-200;
+}
+
+.severity-medium {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+}
+
+.severity-low {
+  @apply bg-blue-100 text-blue-800 border-blue-200;
+}
+
+.severity-informational {
+  @apply bg-gray-100 text-gray-800 border-gray-200;
+}
+
+/* AWS Theme Button */
+.btn-aws {
+  @apply bg-[#FF9900] hover:bg-[#EC7211] text-white font-medium py-2 px-4 rounded-lg transition-colors;
+}
+
+.btn-aws-secondary {
+  @apply bg-[#232F3E] hover:bg-[#37475A] text-white font-medium py-2 px-4 rounded-lg transition-colors;
+}
+
+/* Card Styles */
+.card {
+  @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.card-body {
+  @apply p-6;
+}
+
+/* Loading Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Status Indicators */
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-dot-success {
+  @apply bg-green-500;
+}
+
+.status-dot-warning {
+  @apply bg-yellow-500;
+}
+
+.status-dot-error {
+  @apply bg-red-500;
+}
+
+.status-dot-inactive {
+  @apply bg-gray-400;
+}
+
+/* Gradient Backgrounds */
+.gradient-aws {
+  background: linear-gradient(135deg, #232F3E 0%, #37475A 100%);
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.gradient-warning {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+}
+
+.gradient-danger {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+}
+
+/* Table Styles */
+.table-header {
+  @apply bg-gray-50 text-gray-700 font-semibold text-sm uppercase tracking-wider;
+}
+
+.table-row {
+  @apply border-b border-gray-100 hover:bg-gray-50 transition-colors;
+}
+
+/* Plotly Chart Container */
+.plotly-chart-container {
+  @apply w-full min-h-[300px];
+}
+
+.plotly-chart-container .js-plotly-plot {
+  width: 100% !important;
+}
+
+/* Demo Mode Banner */
+.demo-banner {
+  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white text-center py-2 text-sm font-medium;
+}
+
+/* Compliance Score Circle */
+.compliance-circle {
+  @apply relative w-24 h-24 rounded-full flex items-center justify-center;
+  background: conic-gradient(
+    var(--score-color, #10B981) calc(var(--score, 0) * 3.6deg),
+    #e5e7eb calc(var(--score, 0) * 3.6deg)
+  );
+}
+
+.compliance-circle::before {
+  content: '';
+  @apply absolute w-20 h-20 bg-white rounded-full;
+}
+
+.compliance-circle-value {
+  @apply relative z-10 text-2xl font-bold;
+}

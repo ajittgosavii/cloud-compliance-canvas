@@ -1,0 +1,574 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Cloud Compliance Canvas - Complete Infrastructure
+  Deploys: Amplify Frontend, Lambda Backend, API Gateway, Cognito with Azure AD Federation
+
+# ============================================================================
+# Parameters
+# ============================================================================
+Parameters:
+  ProjectName:
+    Type: String
+    Default: cloud-compliance-canvas
+    Description: Project name used for resource naming
+  
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+  
+  GitHubRepository:
+    Type: String
+    Description: GitHub repository URL (https://github.com/username/repo)
+    Default: ""
+  
+  GitHubAccessToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub Personal Access Token for Amplify
+    Default: ""
+  
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Git branch to deploy
+  
+  # Azure AD Parameters
+  AzureADTenantId:
+    Type: String
+    Description: Azure AD Tenant ID
+    Default: ""
+  
+  AzureADClientId:
+    Type: String
+    Description: Azure AD Application (Client) ID
+    Default: ""
+  
+  AzureADClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Azure AD Client Secret
+    Default: ""
+  
+  # Optional Parameters
+  ClaudeApiKey:
+    Type: String
+    NoEcho: true
+    Description: Anthropic Claude API Key (optional)
+    Default: ""
+  
+  CustomDomainName:
+    Type: String
+    Description: Custom domain name (optional)
+    Default: ""
+
+Conditions:
+  HasGitHubRepo: !Not [!Equals [!Ref GitHubRepository, ""]]
+  HasAzureAD: !Not [!Equals [!Ref AzureADTenantId, ""]]
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomainName, ""]]
+  HasClaudeApiKey: !Not [!Equals [!Ref ClaudeApiKey, ""]]
+
+# ============================================================================
+# Resources
+# ============================================================================
+Resources:
+
+  # --------------------------------------------------------------------------
+  # IAM Roles
+  # --------------------------------------------------------------------------
+  
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-lambda-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AWSServicesReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Security Hub
+                  - securityhub:GetFindings
+                  - securityhub:DescribeHub
+                  - securityhub:GetInsights
+                  # GuardDuty
+                  - guardduty:ListFindings
+                  - guardduty:GetFindings
+                  - guardduty:ListDetectors
+                  # Inspector
+                  - inspector2:ListFindings
+                  - inspector2:GetFindingsReportStatus
+                  # Config
+                  - config:DescribeComplianceByConfigRule
+                  - config:DescribeConfigRules
+                  # Cost Explorer
+                  - ce:GetCostAndUsage
+                  - ce:GetCostForecast
+                  - ce:GetSavingsPlansUtilization
+                  - ce:GetReservationUtilization
+                  - ce:GetRightsizingRecommendation
+                  # Budgets
+                  - budgets:DescribeBudgets
+                  - budgets:ViewBudget
+                  # Organizations
+                  - organizations:ListAccounts
+                  - organizations:DescribeAccount
+                  - organizations:ListPolicies
+                  # STS
+                  - sts:GetCallerIdentity
+                  - sts:AssumeRole
+                Resource: "*"
+      Tags:
+        - Key: Application
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Amplify Service Role
+  AmplifyServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-amplify-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: amplify.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess-Amplify
+      Tags:
+        - Key: Application
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Lambda Function (Backend API)
+  # --------------------------------------------------------------------------
+  
+  BackendFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-api-${Environment}"
+      Description: Cloud Compliance Canvas FastAPI Backend
+      Runtime: python3.11
+      Handler: app.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          ALLOWED_ORIGINS: !Sub "https://${AmplifyApp.DefaultDomain},https://*.amplifyapp.com,http://localhost:5173"
+          CLAUDE_API_KEY: !If [HasClaudeApiKey, !Ref ClaudeApiKey, ""]
+          LOG_LEVEL: INFO
+      Code:
+        ZipFile: |
+          # Placeholder - Deploy actual code via SAM or update
+          def handler(event, context):
+              return {
+                  "statusCode": 200,
+                  "headers": {
+                      "Content-Type": "application/json",
+                      "Access-Control-Allow-Origin": "*"
+                  },
+                  "body": "{\"message\": \"Deploy backend code via SAM\"}"
+              }
+      Tags:
+        - Key: Application
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Function URL (Alternative to API Gateway)
+  BackendFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn: !GetAtt BackendFunction.Arn
+      Cors:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+
+  BackendFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BackendFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  # --------------------------------------------------------------------------
+  # API Gateway (HTTP API)
+  # --------------------------------------------------------------------------
+  
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${ProjectName}-api-${Environment}"
+      Description: Cloud Compliance Canvas API Gateway
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+        MaxAge: 3600
+      Tags:
+        Application: !Ref ProjectName
+        Environment: !Ref Environment
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt BackendFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /{proxy+}"
+      Target: !Sub "integrations/${HttpApiIntegration}"
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: !Ref Environment
+      AutoDeploy: true
+      Tags:
+        Application: !Ref ProjectName
+        Environment: !Ref Environment
+
+  HttpApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BackendFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
+
+  # --------------------------------------------------------------------------
+  # Cognito User Pool (for Azure AD Federation)
+  # --------------------------------------------------------------------------
+  
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${ProjectName}-users-${Environment}"
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      UserPoolTags:
+        Application: !Ref ProjectName
+        Environment: !Ref Environment
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${ProjectName}-client-${Environment}"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - !Sub "https://${AmplifyApp.DefaultDomain}"
+        - !Sub "https://${AmplifyApp.DefaultDomain}/callback"
+        - http://localhost:5173
+        - http://localhost:5173/callback
+      LogoutURLs:
+        - !Sub "https://${AmplifyApp.DefaultDomain}"
+        - http://localhost:5173
+      SupportedIdentityProviders:
+        - COGNITO
+        - !If [HasAzureAD, !Ref AzureADIdentityProvider, !Ref "AWS::NoValue"]
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${ProjectName}-${Environment}-${AWS::AccountId}"
+      UserPoolId: !Ref UserPool
+
+  # Azure AD Identity Provider (Conditional)
+  AzureADIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Condition: HasAzureAD
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: AzureAD
+      ProviderType: OIDC
+      ProviderDetails:
+        client_id: !Ref AzureADClientId
+        client_secret: !Ref AzureADClientSecret
+        authorize_scopes: "openid profile email"
+        oidc_issuer: !Sub "https://login.microsoftonline.com/${AzureADTenantId}/v2.0"
+        attributes_request_method: GET
+      AttributeMapping:
+        email: email
+        name: name
+        username: sub
+
+  # --------------------------------------------------------------------------
+  # Amplify App (Frontend)
+  # --------------------------------------------------------------------------
+  
+  AmplifyApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}"
+      Description: Cloud Compliance Canvas - Enterprise AWS Governance Platform
+      IAMServiceRole: !GetAtt AmplifyServiceRole.Arn
+      Platform: WEB_COMPUTE
+      EnvironmentVariables:
+        - Name: VITE_API_URL
+          Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+        - Name: VITE_ENABLE_DEMO_MODE
+          Value: "true"
+        - Name: VITE_APP_NAME
+          Value: Cloud Compliance Canvas
+        - Name: VITE_COGNITO_USER_POOL_ID
+          Value: !Ref UserPool
+        - Name: VITE_COGNITO_CLIENT_ID
+          Value: !Ref UserPoolClient
+        - Name: VITE_COGNITO_DOMAIN
+          Value: !Sub "${ProjectName}-${Environment}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"
+        - Name: VITE_AWS_REGION
+          Value: !Ref AWS::Region
+      BuildSpec: |
+        version: 1
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm ci
+            build:
+              commands:
+                - npm run build
+          artifacts:
+            baseDirectory: dist
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+      CustomRules:
+        - Source: "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>"
+          Target: /index.html
+          Status: "200"
+      Tags:
+        - Key: Application
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Condition: HasGitHubRepo
+    Properties:
+      AppId: !GetAtt AmplifyApp.AppId
+      BranchName: !Ref GitHubBranch
+      Stage: PRODUCTION
+      EnableAutoBuild: true
+      EnablePullRequestPreview: true
+      Tags:
+        - Key: Application
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # CloudWatch Dashboard
+  # --------------------------------------------------------------------------
+  
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${ProjectName}-${Environment}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Invocations",
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${BackendFunction}"]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Errors",
+                "metrics": [
+                  ["AWS/Lambda", "Errors", "FunctionName", "${BackendFunction}"]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Duration",
+                "metrics": [
+                  ["AWS/Lambda", "Duration", "FunctionName", "${BackendFunction}"]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "API Gateway Requests",
+                "metrics": [
+                  ["AWS/ApiGateway", "Count", "ApiId", "${HttpApi}"]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            }
+          ]
+        }
+
+# ============================================================================
+# Outputs
+# ============================================================================
+Outputs:
+  AmplifyAppUrl:
+    Description: Amplify App URL
+    Value: !Sub "https://${AmplifyApp.DefaultDomain}"
+    Export:
+      Name: !Sub "${AWS::StackName}-AmplifyUrl"
+
+  AmplifyAppId:
+    Description: Amplify App ID
+    Value: !GetAtt AmplifyApp.AppId
+    Export:
+      Name: !Sub "${AWS::StackName}-AmplifyAppId"
+
+  ApiGatewayUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+
+  LambdaFunctionUrl:
+    Description: Lambda Function URL (Alternative)
+    Value: !GetAtt BackendFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaUrl"
+
+  LambdaFunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt BackendFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaArn"
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+
+  CognitoClientId:
+    Description: Cognito Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-ClientId"
+
+  CognitoDomain:
+    Description: Cognito Domain
+    Value: !Sub "${ProjectName}-${Environment}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoDomain"
+
+  CloudWatchDashboard:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}"

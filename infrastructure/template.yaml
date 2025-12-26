@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Cloud Compliance Canvas - Backend API
+  FastAPI application deployed on AWS Lambda with API Gateway
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Deployment environment
+  
+  AllowedOrigins:
+    Type: String
+    Default: "*"
+    Description: CORS allowed origins (comma-separated)
+  
+  ClaudeApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Anthropic Claude API Key (optional)
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        ALLOWED_ORIGINS: !Ref AllowedOrigins
+        CLAUDE_API_KEY: !Ref ClaudeApiKey
+        POWERTOOLS_SERVICE_NAME: cloud-compliance-canvas
+        LOG_LEVEL: INFO
+
+Resources:
+  # ============================================================================
+  # Lambda Function
+  # ============================================================================
+  
+  CloudComplianceCanvasFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cloud-compliance-canvas-api-${Environment}"
+      Description: Cloud Compliance Canvas FastAPI Backend
+      CodeUri: lambda/
+      Handler: app.handler
+      Events:
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiHealth:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/health
+            Method: GET
+      Policies:
+        # Read-only access to AWS services for demo
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - securityhub:GetFindings
+                - securityhub:DescribeHub
+                - guardduty:ListFindings
+                - guardduty:GetFindings
+                - inspector2:ListFindings
+                - config:DescribeComplianceByConfigRule
+                - ce:GetCostAndUsage
+                - ce:GetCostForecast
+                - ce:GetSavingsPlansUtilization
+                - budgets:DescribeBudgets
+                - organizations:ListAccounts
+                - organizations:DescribeAccount
+                - sts:GetCallerIdentity
+              Resource: "*"
+      Tags:
+        Application: CloudComplianceCanvas
+        Environment: !Ref Environment
+    Metadata:
+      BuildMethod: python3.12
+
+  # ============================================================================
+  # HTTP API (API Gateway v2)
+  # ============================================================================
+  
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      Description: Cloud Compliance Canvas API
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+          - X-Amz-Security-Token
+        MaxAge: 3600
+      Tags:
+        Application: CloudComplianceCanvas
+        Environment: !Ref Environment
+
+  # ============================================================================
+  # CloudWatch Log Group
+  # ============================================================================
+  
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cloud-compliance-canvas-api-${Environment}"
+      RetentionInDays: 30
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt CloudComplianceCanvasFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-FunctionArn"
+  
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref HttpApi
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"
