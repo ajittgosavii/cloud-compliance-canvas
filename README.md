@@ -1,143 +1,105 @@
-# Cloud Compliance Canvas - React Frontend v3.0.0
+# Cloud Compliance Canvas v4.0.0
 
-A modern React dashboard for AWS cloud governance, security, compliance, and cost management.
+Enterprise AWS Governance Platform with AWS Organizations Support
 
 ## Features
 
-### 10 Complete Modules
+### Demo/Live Mode Toggle
+- **Demo Mode**: Shows realistic sample data for evaluation and demos
+- **Live Mode**: Connects to real AWS services via Organizations
 
-1. **Dashboard** - Unified overview of all metrics
-2. **AI Command Center** - Claude AI-powered predictions, chat, and alerts
-3. **Security** - Security Hub, GuardDuty, Config Rules, Inspector
-4. **Compliance** - Unified multi-source compliance monitoring
-5. **Vulnerabilities** - Inspector, EKS, and Container vulnerabilities
-6. **Tech Guardrails** - SCP, OPA, and KICS policy management
-7. **Remediation** - AI-powered threat analysis and code generation
-8. **Account Lifecycle** - AWS account provisioning and management
-9. **FinOps** - Cost management, budgets, anomalies, savings
-10. **Integrations** - Jira, Slack, ServiceNow, PagerDuty, GitHub
+### AWS Organizations Integration
+- List all accounts in your organization
+- View account details, compliance scores, and costs
+- Provision new accounts with templates
+- Decommission accounts
+
+### 10 Complete Modules
+1. **Dashboard** - Unified overview
+2. **AI Command Center** - Claude AI predictions and chat
+3. **Security** - Security Hub, GuardDuty, Config, Inspector
+4. **Compliance** - Multi-framework compliance tracking
+5. **Vulnerabilities** - CVE tracking across services
+6. **Tech Guardrails** - SCP, OPA, KICS policies
+7. **Remediation** - AI-powered threat remediation
+8. **Account Lifecycle** - AWS Organizations management
+9. **FinOps** - Cost management and optimization
+10. **Integrations** - Jira, Slack, ServiceNow, PagerDuty
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-
-### Installation
-
+### Local Development
 ```bash
-# Install dependencies
 npm install
-
-# Create environment file
-cp .env.example .env
-
-# Start development server
 npm run dev
 ```
 
-### Build for Production
-
-```bash
-npm run build
-```
-
 ### Deploy to AWS Amplify
+1. Push to GitHub
+2. Connect in AWS Amplify Console
+3. Set environment variable: `VITE_API_URL`
+4. Deploy
 
-1. Push code to GitHub/GitLab/CodeCommit
-2. Connect repository in AWS Amplify Console
-3. Configure build settings:
-   ```yaml
-   version: 1
-   frontend:
-     phases:
-       preBuild:
-         commands:
-           - npm ci
-       build:
-         commands:
-           - npm run build
-     artifacts:
-       baseDirectory: dist
-       files:
-         - '**/*'
-     cache:
-       paths:
-         - node_modules/**/*
-   ```
-4. Add environment variable:
-   - `VITE_API_URL`: Your Lambda Function URL
+## Lambda Backend Configuration
 
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | Backend API URL | Lambda Function URL |
-
-### API Endpoints
-
-The frontend connects to a Lambda backend with 50+ endpoints:
-
-- `/api/dashboard` - Dashboard overview
-- `/api/ai/*` - AI predictions and chat
-- `/api/security/*` - Security findings
-- `/api/compliance/*` - Compliance data
-- `/api/vulnerabilities/*` - Vulnerability management
-- `/api/guardrails/*` - Policy management
-- `/api/remediation/*` - Threat remediation
-- `/api/accounts/*` - Account lifecycle
-- `/api/finops/*` - Cost management
-- `/api/integrations/*` - External integrations
-
-## Tech Stack
-
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Vite** - Build tool
-- **Lucide React** - Icons
-- **Axios** - HTTP client
-
-## Project Structure
+Set these environment variables in your Lambda function:
 
 ```
-src/
-├── App.tsx              # Main app with navigation
-├── main.tsx            # Entry point
-├── index.css           # Global styles
-├── services/
-│   └── api.ts          # API client with all endpoints
-└── pages/
-    ├── DashboardPage.tsx
-    ├── AIPredictionsPage.tsx
-    ├── SecurityPage.tsx
-    ├── CompliancePage.tsx
-    ├── VulnerabilitiesPage.tsx
-    ├── GuardrailsPage.tsx
-    ├── RemediationPage.tsx
-    ├── AccountsPage.tsx
-    ├── FinOpsPage.tsx
-    └── IntegrationsPage.tsx
+DEMO_MODE=false                    # Set to false for live data
+AWS_DEFAULT_REGION=us-east-1       # Your AWS region
+ANTHROPIC_API_KEY=sk-ant-...       # For Claude AI features
+CROSS_ACCOUNT_ROLE_ARN=arn:aws:iam::123456789012:role/OrganizationAccountAccessRole
 ```
 
-## Screenshots
+### Required IAM Permissions
 
-### Dashboard
-Overview of security findings, compliance score, costs, and account status.
+For AWS Organizations integration:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "organizations:ListAccounts",
+        "organizations:DescribeOrganization",
+        "organizations:ListOrganizationalUnitsForParent",
+        "organizations:ListRoots"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "securityhub:GetFindings",
+        "guardduty:ListDetectors",
+        "guardduty:ListFindings",
+        "guardduty:GetFindings",
+        "config:DescribeComplianceByConfigRule",
+        "ce:GetCostAndUsage",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
 
-### AI Command Center
-Chat with Claude AI, view predictions, and receive proactive alerts.
+## Architecture
 
-### FinOps
-Complete cost management with budgets, anomalies, and savings recommendations.
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   React App     │────▶│  Lambda API     │────▶│  AWS Services   │
+│   (Amplify)     │     │  (FastAPI)      │     │  Organizations  │
+└─────────────────┘     └─────────────────┘     │  Security Hub   │
+                                                 │  GuardDuty      │
+                                                 │  Cost Explorer  │
+                                                 └─────────────────┘
+```
 
-## License
+## Version History
 
-MIT
-
-## Support
-
-For issues and feature requests, please open a GitHub issue.
+- **v4.0.0** - AWS Organizations support, Demo/Live toggle
+- **v3.0.0** - Full Lambda backend, 10 modules
+- **v2.0.0** - React migration from Streamlit
+- **v1.0.0** - Original Streamlit app

@@ -10,7 +10,18 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: false,
+    // Skip TypeScript type checking during build
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Suppress "use client" warnings
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+        warn(warning);
+      }
+    }
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   },
   define: {
     'process.env': {}
