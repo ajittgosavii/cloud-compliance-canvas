@@ -56,7 +56,7 @@ export async function fetchDashboardData(demoMode: boolean) {
     return null; // Let component use getDemoData()
   }
   const response = await apiClient.get<ApiResponse<any>>('/dashboard');
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -90,7 +90,7 @@ export async function fetchInspectorFindings(params?: {
 
 export async function fetchConfigCompliance(): Promise<any> {
   const response = await apiClient.get<ApiResponse<any>>('/security/config');
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -142,7 +142,7 @@ export async function fetchBudgets(): Promise<Budget[]> {
 
 export async function fetchCostForecast(): Promise<any> {
   const response = await apiClient.get<ApiResponse<any>>('/finops/forecast');
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -180,12 +180,12 @@ export async function fetchOPAPolicies(): Promise<any[]> {
 
 export async function fetchKICSResults(): Promise<any> {
   const response = await apiClient.get<ApiResponse<any>>('/guardrails/kics');
-  return response.data.data;
+  return response.data;
 }
 
 export async function deploySCPPolicy(policy: any): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/guardrails/scp/deploy', policy);
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -231,12 +231,12 @@ export async function fetchAccountTemplates(): Promise<any[]> {
 
 export async function provisionAccount(request: any): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/accounts/provision', request);
-  return response.data.data;
+  return response.data;
 }
 
 export async function decommissionAccount(accountId: string): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>(`/accounts/${accountId}/decommission`);
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -250,12 +250,12 @@ export async function fetchRemediationPlans(): Promise<any[]> {
 
 export async function generateRemediationCode(finding: any): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/remediation/generate-code', finding);
-  return response.data.data;
+  return response.data;
 }
 
 export async function executeBatchRemediation(plan: any): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/remediation/execute-batch', plan);
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
@@ -264,12 +264,12 @@ export async function executeBatchRemediation(plan: any): Promise<any> {
 
 export async function validateToken(token: string): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/auth/validate', { token });
-  return response.data.data;
+  return response.data;
 }
 
 export async function refreshToken(): Promise<any> {
   const response = await apiClient.post<ApiResponse<any>>('/auth/refresh');
-  return response.data.data;
+  return response.data;
 }
 
 // ============================================================
