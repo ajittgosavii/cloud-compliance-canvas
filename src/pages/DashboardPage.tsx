@@ -1,248 +1,169 @@
-import { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, RefreshCw, Shield, DollarSign, CheckCircle, 
-  AlertTriangle, TrendingUp, Activity, Users, Bug
-} from 'lucide-react';
-import * as api from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { fetchDashboard, fetchHealth } from '../services/api';
 
-interface DashboardPageProps {
-  demoMode?: boolean;
-}
-
-export default function DashboardPage({ demoMode = true }: DashboardPageProps) {
-  const [dashboardData, setDashboardData] = useState<any>(null);
+export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [health, setHealth] = useState<any>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
     try {
-      const data = await api.fetchDashboard();
-      setDashboardData(data);
+      const [dashboardData, healthData] = await Promise.all([
+        fetchDashboard(),
+        fetchHealth()
+      ]);
+      setDashboard(dashboardData);
+      setHealth(healthData);
     } catch (error) {
-      console.error('Failed to load dashboard:', error);
+      console.error('Error loading dashboard:', error);
     }
     setLoading(false);
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-400';
-    if (score >= 80) return 'text-yellow-400';
-    if (score >= 70) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'operational': return 'bg-green-400';
-      case 'degraded': return 'bg-yellow-400';
-      case 'error': return 'bg-red-400';
-      default: return 'bg-gray-400';
-    }
-  };
-
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LayoutDashboard className="w-8 h-8 text-blue-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-gray-400">Cloud Compliance Canvas Overview</p>
-          </div>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">📊 Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <span className={`px-3 py-1 rounded-full text-sm ${
+            health?.mode === 'live' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {health?.mode === 'live' ? '🔴 Live' : '🟡 Demo'}
+          </span>
+          <span className="text-sm text-gray-500">v{health?.version}</span>
         </div>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-400/10 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-400" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-gray-500 text-sm">Total Accounts</div>
+              <div className="text-3xl font-bold text-indigo-600">{dashboard?.accounts?.total || 0}</div>
             </div>
-            <span className="text-gray-400">Compliance Score</span>
-          </div>
-          <p className={`text-4xl font-bold ${getScoreColor(dashboardData?.compliance?.score || 0)}`}>
-            {dashboardData?.compliance?.score || 0}%
-          </p>
-        </div>
-
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-red-400/10 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-red-400" />
-            </div>
-            <span className="text-gray-400">Critical Findings</span>
-          </div>
-          <p className="text-4xl font-bold text-red-400">
-            {dashboardData?.security?.critical || 0}
-          </p>
-        </div>
-
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-emerald-400/10 rounded-lg">
-              <DollarSign className="w-6 h-6 text-emerald-400" />
-            </div>
-            <span className="text-gray-400">Monthly Spend</span>
-          </div>
-          <p className="text-4xl font-bold text-emerald-400">
-            {formatCurrency(dashboardData?.costs?.current_month || 0)}
-          </p>
-        </div>
-
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-cyan-400/10 rounded-lg">
-              <Users className="w-6 h-6 text-cyan-400" />
-            </div>
-            <span className="text-gray-400">AWS Accounts</span>
-          </div>
-          <p className="text-4xl font-bold text-cyan-400">
-            {dashboardData?.accounts?.total || 0}
-          </p>
-        </div>
-      </div>
-
-      {/* Security Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="w-5 h-5 text-blue-400" />
-            <h3 className="text-lg font-semibold text-white">Security Findings</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-red-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-red-400">{dashboardData?.security?.critical || 0}</p>
-              <p className="text-gray-400 text-sm">Critical</p>
-            </div>
-            <div className="bg-orange-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-orange-400">{dashboardData?.security?.high || 0}</p>
-              <p className="text-gray-400 text-sm">High</p>
-            </div>
-            <div className="bg-yellow-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-yellow-400">{dashboardData?.security?.medium || 0}</p>
-              <p className="text-gray-400 text-sm">Medium</p>
-            </div>
-            <div className="bg-blue-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-blue-400">{dashboardData?.security?.low || 0}</p>
-              <p className="text-gray-400 text-sm">Low</p>
-            </div>
+            <div className="text-4xl">🏢</div>
           </div>
         </div>
 
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-2 mb-4">
-            <Bug className="w-5 h-5 text-red-400" />
-            <h3 className="text-lg font-semibold text-white">Vulnerabilities</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-red-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-red-400">{dashboardData?.vulnerabilities?.critical || 0}</p>
-              <p className="text-gray-400 text-sm">Critical</p>
-            </div>
-            <div className="bg-orange-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-orange-400">{dashboardData?.vulnerabilities?.high || 0}</p>
-              <p className="text-gray-400 text-sm">High</p>
-            </div>
-            <div className="bg-yellow-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-yellow-400">{dashboardData?.vulnerabilities?.medium || 0}</p>
-              <p className="text-gray-400 text-sm">Medium</p>
-            </div>
-            <div className="bg-blue-400/10 rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-blue-400">{dashboardData?.vulnerabilities?.low || 0}</p>
-              <p className="text-gray-400 text-sm">Low</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Compliance Frameworks */}
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div className="flex items-center gap-2 mb-4">
-          <CheckCircle className="w-5 h-5 text-green-400" />
-          <h3 className="text-lg font-semibold text-white">Compliance Frameworks</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          {dashboardData?.compliance?.frameworks?.map((fw: any) => (
-            <div key={fw.name} className="bg-gray-700/50 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm mb-2">{fw.name}</p>
-              <p className={`text-2xl font-bold ${getScoreColor(fw.score)}`}>{fw.score}%</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Service Status */}
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div className="flex items-center gap-2 mb-4">
-          <Activity className="w-5 h-5 text-blue-400" />
-          <h3 className="text-lg font-semibold text-white">Service Status</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {dashboardData?.services?.map((service: any) => (
-            <div key={service.name} className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-lg">
-              <div className={`w-3 h-3 rounded-full ${getStatusColor(service.status)}`}></div>
-              <div>
-                <p className="text-white text-sm">{service.name}</p>
-                <p className="text-gray-500 text-xs capitalize">{service.status}</p>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-gray-500 text-sm">Current Month Cost</div>
+              <div className="text-3xl font-bold text-green-600">
+                {formatCurrency(dashboard?.costs?.current_month || 0)}
               </div>
             </div>
-          ))}
+            <div className="text-4xl">💰</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-gray-500 text-sm">Forecast</div>
+              <div className="text-3xl font-bold text-blue-600">
+                {formatCurrency(dashboard?.costs?.forecast || 0)}
+              </div>
+            </div>
+            <div className="text-4xl">📈</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-gray-500 text-sm">Potential Savings</div>
+              <div className="text-3xl font-bold text-orange-600">
+                {formatCurrency(dashboard?.costs?.savings_potential || 0)}
+              </div>
+            </div>
+            <div className="text-4xl">💡</div>
+          </div>
         </div>
       </div>
 
-      {/* Cost Overview */}
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign className="w-5 h-5 text-emerald-400" />
-          <h3 className="text-lg font-semibold text-white">Cost Overview</h3>
+      {/* Security Findings */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">Security Findings by Severity</h3>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-red-600">{dashboard?.security?.CRITICAL || 0}</div>
+              <div className="text-sm text-gray-500">Critical</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-orange-600">{dashboard?.security?.HIGH || 0}</div>
+              <div className="text-sm text-gray-500">High</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-yellow-600">{dashboard?.security?.MEDIUM || 0}</div>
+              <div className="text-sm text-gray-500">Medium</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{dashboard?.security?.LOW || 0}</div>
+              <div className="text-sm text-gray-500">Low</div>
+            </div>
+          </div>
         </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">System Status</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span>AWS Connection</span>
+              <span className={`px-2 py-1 rounded text-sm ${
+                health?.aws_connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {health?.aws_connected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>AWS Account</span>
+              <span className="font-mono text-sm">{health?.aws_account}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Region</span>
+              <span>{health?.aws_region}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Endpoints</span>
+              <span>{health?.endpoints}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Feature Parity</span>
+              <span className="text-green-600 font-medium">{health?.feature_parity}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modules Status */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="font-semibold mb-4">Loaded Modules</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-700/50 rounded-lg p-4">
-            <p className="text-gray-400 text-sm">Current Month</p>
-            <p className="text-2xl font-bold text-white">{formatCurrency(dashboardData?.costs?.current_month || 0)}</p>
-          </div>
-          <div className="bg-gray-700/50 rounded-lg p-4">
-            <p className="text-gray-400 text-sm">Last Month</p>
-            <p className="text-2xl font-bold text-gray-400">{formatCurrency(dashboardData?.costs?.last_month || 0)}</p>
-          </div>
-          <div className="bg-gray-700/50 rounded-lg p-4">
-            <p className="text-gray-400 text-sm">Forecasted</p>
-            <p className="text-2xl font-bold text-blue-400">{formatCurrency(dashboardData?.costs?.forecasted || 0)}</p>
-          </div>
-          <div className="bg-emerald-400/10 rounded-lg p-4">
-            <p className="text-gray-400 text-sm">Potential Savings</p>
-            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(dashboardData?.costs?.savings_potential || 0)}</p>
-          </div>
+          {health?.modules_loaded && Object.entries(health.modules_loaded).map(([module, loaded]) => (
+            <div key={module} className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${loaded ? 'bg-green-500' : 'bg-red-500'}`}></span>
+              <span className="text-sm">{module.replace(/_/g, ' ')}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

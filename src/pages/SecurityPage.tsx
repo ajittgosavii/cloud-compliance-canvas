@@ -1,271 +1,249 @@
-import { useState, useEffect } from 'react';
-import { 
-  Shield, RefreshCw, AlertTriangle, Eye, Filter,
-  ShieldAlert, Radar, Settings, Search
-} from 'lucide-react';
-import * as api from '../services/api';
+import React, { useState, useEffect } from 'react';
+import {
+  fetchSecurityHub,
+  fetchGuardDuty,
+  fetchConfigCompliance,
+  fetchInspector,
+  fetchSecurityTrends
+} from '../services/api';
 
-interface SecurityPageProps {
-  demoMode?: boolean;
-}
+type TabType = 'security-hub' | 'config' | 'guardduty' | 'inspector' | 'trends';
 
-export default function SecurityPage({ demoMode = true }: SecurityPageProps) {
-  const [activeTab, setActiveTab] = useState('securityhub');
-  const [securityHubFindings, setSecurityHubFindings] = useState<any[]>([]);
-  const [guardDutyFindings, setGuardDutyFindings] = useState<any[]>([]);
-  const [configRules, setConfigRules] = useState<any[]>([]);
-  const [inspectorFindings, setInspectorFindings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [severityFilter, setSeverityFilter] = useState('all');
+export default function SecurityPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('security-hub');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Record<string, any>>({});
+
+  const tabs: { id: TabType; label: string; icon: string }[] = [
+    { id: 'security-hub', label: 'Security Hub', icon: '🛡️' },
+    { id: 'config', label: 'Config Rules', icon: '⚙️' },
+    { id: 'guardduty', label: 'GuardDuty', icon: '🚨' },
+    { id: 'inspector', label: 'Inspector', icon: '🔬' },
+    { id: 'trends', label: 'Trends', icon: '📈' },
+  ];
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadTabData(activeTab);
+  }, [activeTab]);
 
-  const loadData = async () => {
+  const loadTabData = async (tab: TabType) => {
     setLoading(true);
     try {
-      const [sh, gd, cfg, insp] = await Promise.all([
-        api.fetchSecurityHubFindings(100),
-        api.fetchGuardDutyFindings(50),
-        api.fetchConfigRules(),
-        api.fetchInspectorFindings()
-      ]);
-      setSecurityHubFindings(sh.findings || []);
-      setGuardDutyFindings(gd.findings || []);
-      setConfigRules(cfg.rules || []);
-      setInspectorFindings(insp.findings || []);
+      let result;
+      switch (tab) {
+        case 'security-hub': result = await fetchSecurityHub(); break;
+        case 'config': result = await fetchConfigCompliance(); break;
+        case 'guardduty': result = await fetchGuardDuty(); break;
+        case 'inspector': result = await fetchInspector(); break;
+        case 'trends': result = await fetchSecurityTrends(); break;
+      }
+      setData(prev => ({ ...prev, [tab]: result }));
     } catch (error) {
-      console.error('Failed to load security data:', error);
+      console.error('Error loading data:', error);
     }
     setLoading(false);
   };
 
-  const tabs = [
-    { id: 'securityhub', label: 'Security Hub', icon: Shield, count: securityHubFindings.length },
-    { id: 'guardduty', label: 'GuardDuty', icon: Radar, count: guardDutyFindings.length },
-    { id: 'config', label: 'Config Rules', icon: Settings, count: configRules.length },
-    { id: 'inspector', label: 'Inspector', icon: Search, count: inspectorFindings.length }
-  ];
-
-  const getSeverityColor = (severity: string | number) => {
-    const sev = typeof severity === 'number' ? 
-      (severity >= 7 ? 'CRITICAL' : severity >= 4 ? 'HIGH' : 'MEDIUM') :
-      severity?.toUpperCase();
-    
-    switch (sev) {
-      case 'CRITICAL': return 'text-red-400 bg-red-400/10 border-red-400/30';
-      case 'HIGH': return 'text-orange-400 bg-orange-400/10 border-orange-400/30';
-      case 'MEDIUM': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30';
-      case 'LOW': return 'text-blue-400 bg-blue-400/10 border-blue-400/30';
-      default: return 'text-gray-400 bg-gray-400/10 border-gray-400/30';
+  const getSeverityColor = (severity: string) => {
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL': return 'bg-red-500';
+      case 'HIGH': return 'bg-orange-500';
+      case 'MEDIUM': return 'bg-yellow-500';
+      case 'LOW': return 'bg-blue-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getComplianceColor = (status: string) => {
-    return status === 'COMPLIANT' 
-      ? 'bg-green-400/10 text-green-400'
-      : 'bg-red-400/10 text-red-400';
-  };
+  const renderSecurityHub = () => {
+    const d = data['security-hub'];
+    if (!d) return null;
 
-  const filteredFindings = securityHubFindings.filter(f => 
-    severityFilter === 'all' || f.severity?.toUpperCase() === severityFilter.toUpperCase()
-  );
-
-  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShieldAlert className="w-8 h-8 text-blue-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Security</h1>
-            <p className="text-gray-400">AWS security services overview</p>
-          </div>
-        </div>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`bg-gray-800 rounded-xl p-4 border cursor-pointer transition-all ${
-              activeTab === tab.id ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-gray-600'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <tab.icon className={`w-6 h-6 ${activeTab === tab.id ? 'text-blue-400' : 'text-gray-400'}`} />
-              <span className="text-2xl font-bold text-white">{tab.count}</span>
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {Object.entries(d.by_severity || {}).map(([severity, count]) => (
+            <div key={severity} className="bg-white rounded-lg shadow p-4">
+              <div className={`text-3xl font-bold ${
+                severity === 'CRITICAL' ? 'text-red-600' :
+                severity === 'HIGH' ? 'text-orange-600' :
+                severity === 'MEDIUM' ? 'text-yellow-600' :
+                'text-blue-600'
+              }`}>{count as number}</div>
+              <div className="text-gray-500">{severity}</div>
             </div>
-            <p className="text-gray-400 mt-2 text-sm">{tab.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700">
-        {/* Tab Header */}
-        <div className="flex border-b border-gray-700 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-              <span className="px-2 py-0.5 bg-gray-700 rounded-full text-xs">
-                {tab.count}
-              </span>
-            </button>
           ))}
         </div>
 
-        {/* Security Hub Tab */}
-        {activeTab === 'securityhub' && (
-          <div>
-            {/* Filter */}
-            <div className="p-4 border-b border-gray-700 flex items-center gap-4">
-              <Filter className="w-5 h-5 text-gray-400" />
-              <select
-                value={severityFilter}
-                onChange={(e) => setSeverityFilter(e.target.value)}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-              >
-                <option value="all">All Severities</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <span className="text-gray-400 text-sm">
-                {filteredFindings.length} findings
-              </span>
-            </div>
-
-            {/* Findings List */}
-            <div className="divide-y divide-gray-700 max-h-[500px] overflow-y-auto">
-              {filteredFindings.map((finding) => (
-                <div key={finding.id} className="p-4 hover:bg-gray-700/50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 rounded text-xs ${getSeverityColor(finding.severity)}`}>
-                          {finding.severity}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          finding.status === 'RESOLVED' ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400'
-                        }`}>
-                          {finding.status}
-                        </span>
-                      </div>
-                      <p className="text-white">{finding.title}</p>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                        <span>{finding.resource_type}</span>
-                        <span>•</span>
-                        <span>{finding.region}</span>
-                        <span>•</span>
-                        <span>{new Date(finding.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <button className="p-2 text-gray-400 hover:text-white">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">Recent Findings</h3>
+          <div className="space-y-3">
+            {d.findings?.slice(0, 10).map((finding: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-4 p-3 border rounded">
+                <span className={`px-2 py-1 rounded text-white text-sm ${getSeverityColor(finding.severity)}`}>
+                  {finding.severity}
+                </span>
+                <div className="flex-1">
+                  <div className="font-medium">{finding.title}</div>
+                  <div className="text-sm text-gray-500">{finding.resource_type}</div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* GuardDuty Tab */}
-        {activeTab === 'guardduty' && (
-          <div className="divide-y divide-gray-700 max-h-[500px] overflow-y-auto">
-            {guardDutyFindings.map((finding) => (
-              <div key={finding.id} className="p-4 hover:bg-gray-700/50">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs ${getSeverityColor(finding.severity)}`}>
-                        {typeof finding.severity === 'number' ? `${finding.severity.toFixed(1)}` : finding.severity}
-                      </span>
-                    </div>
-                    <p className="text-white font-medium">{finding.type}</p>
-                    <p className="text-gray-400 text-sm mt-1">{finding.description}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                      <span>Resource: {finding.resource}</span>
-                      <span>•</span>
-                      <span>{new Date(finding.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
+                <span className="text-sm text-gray-400">{finding.status}</span>
               </div>
             ))}
           </div>
-        )}
-
-        {/* Config Rules Tab */}
-        {activeTab === 'config' && (
-          <div className="divide-y divide-gray-700">
-            {configRules.map((rule, index) => (
-              <div key={index} className="p-4 hover:bg-gray-700/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">{rule.name}</p>
-                    <p className="text-gray-400 text-sm">{rule.resources} resources evaluated</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded text-sm ${getComplianceColor(rule.compliance)}`}>
-                    {rule.compliance}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Inspector Tab */}
-        {activeTab === 'inspector' && (
-          <div className="divide-y divide-gray-700 max-h-[500px] overflow-y-auto">
-            {inspectorFindings.map((finding) => (
-              <div key={finding.id} className="p-4 hover:bg-gray-700/50">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-0.5 rounded text-xs ${getSeverityColor(finding.severity)}`}>
-                    {finding.severity}
-                  </span>
-                  <span className="text-blue-400 font-mono text-sm">{finding.cve_id}</span>
-                </div>
-                <p className="text-white">{finding.title}</p>
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                  <span>{finding.resource_type}</span>
-                  <span>•</span>
-                  <span>CVSS: {finding.cvss_score}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
       </div>
+    );
+  };
+
+  const renderGuardDuty = () => {
+    const d = data.guardduty;
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-3xl font-bold text-orange-600">{d.total || d.findings?.length || 0}</div>
+          <div className="text-gray-500">Total Findings</div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">GuardDuty Findings</h3>
+          <div className="space-y-3">
+            {d.findings?.map((finding: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-4 p-3 border rounded">
+                <span className={`px-2 py-1 rounded text-white text-sm ${
+                  finding.severity >= 7 ? 'bg-red-500' :
+                  finding.severity >= 4 ? 'bg-orange-500' :
+                  'bg-yellow-500'
+                }`}>
+                  {finding.severity}
+                </span>
+                <div className="flex-1">
+                  <div className="font-medium">{finding.type}</div>
+                  <div className="text-sm text-gray-500">{finding.id}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderConfig = () => {
+    const d = data.config;
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">Config Rules Compliance</h3>
+          <div className="space-y-3">
+            {d.rules?.map((rule: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between p-3 border rounded">
+                <span className="font-medium">{rule.name}</span>
+                <span className={`px-2 py-1 rounded text-sm ${
+                  rule.compliance === 'COMPLIANT' ? 'bg-green-100 text-green-800' :
+                  'bg-red-100 text-red-800'
+                }`}>{rule.compliance}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTrends = () => {
+    const d = data.trends;
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-lg font-semibold">Critical Trend</div>
+            <div className={`text-2xl font-bold ${
+              d.summary?.critical_trend === 'decreasing' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {d.summary?.critical_trend === 'decreasing' ? '↓ Decreasing' : '↑ Increasing'}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-lg font-semibold">Resolution Rate</div>
+            <div className="text-2xl font-bold text-indigo-600">{d.summary?.resolution_rate}%</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-lg font-semibold">MTTR</div>
+            <div className="text-2xl font-bold text-blue-600">{d.summary?.mttr_hours}h</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">30-Day Trend</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Date</th>
+                  <th className="text-right py-2">Critical</th>
+                  <th className="text-right py-2">High</th>
+                  <th className="text-right py-2">Medium</th>
+                  <th className="text-right py-2">Resolved</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.trends?.slice(-7).map((day: any, idx: number) => (
+                  <tr key={idx} className="border-b">
+                    <td className="py-2">{day.date}</td>
+                    <td className="py-2 text-right text-red-600">{day.critical}</td>
+                    <td className="py-2 text-right text-orange-600">{day.high}</td>
+                    <td className="py-2 text-right text-yellow-600">{day.medium}</td>
+                    <td className="py-2 text-right text-green-600">{day.resolved}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">🔍 Security</h1>
+      
+      <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+              activeTab === tab.id
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        </div>
+      ) : (
+        <>
+          {activeTab === 'security-hub' && renderSecurityHub()}
+          {activeTab === 'guardduty' && renderGuardDuty()}
+          {activeTab === 'config' && renderConfig()}
+          {activeTab === 'trends' && renderTrends()}
+          {activeTab === 'inspector' && <div className="text-gray-500">Inspector findings will appear here</div>}
+        </>
+      )}
     </div>
   );
 }

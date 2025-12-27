@@ -1,414 +1,303 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Brain, TrendingUp, Shield, CheckCircle, Activity, AlertTriangle, 
-  DollarSign, Send, RefreshCw, Zap, MessageSquare, BarChart3
-} from 'lucide-react';
-import * as api from '../services/api';
+  fetchAIExecutiveDashboard, 
+  fetchAIPrediction, 
+  fetchAIAlerts,
+  sendAIChat 
+} from '../services/api';
+
+type TabType = 'executive' | 'chat' | 'cost' | 'security' | 'compliance' | 'operations' | 'alerts';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-interface AIPredictionsPageProps {
-  demoMode?: boolean;
-}
-
-export default function AIPredictionsPage({ demoMode = true }: AIPredictionsPageProps) {
-  const [activeTab, setActiveTab] = useState('executive');
+export default function AIPredictionsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('executive');
+  const [loading, setLoading] = useState(false);
   const [executiveData, setExecutiveData] = useState<any>(null);
   const [predictions, setPredictions] = useState<Record<string, any>>({});
   const [alerts, setAlerts] = useState<any[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [chatLoading, setChatLoading] = useState(false);
+
+  const tabs: { id: TabType; label: string; icon: string }[] = [
+    { id: 'executive', label: 'Executive Dashboard', icon: '📊' },
+    { id: 'chat', label: 'AI Chat Assistant', icon: '💬' },
+    { id: 'cost', label: 'Cost Predictions', icon: '💰' },
+    { id: 'security', label: 'Security Predictions', icon: '🛡️' },
+    { id: 'compliance', label: 'Compliance Predictions', icon: '📋' },
+    { id: 'operations', label: 'Operations Predictions', icon: '⚙️' },
+    { id: 'alerts', label: 'Proactive Alerts', icon: '⚡' },
+  ];
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadTabData(activeTab);
+  }, [activeTab]);
 
-  const loadData = async () => {
+  const loadTabData = async (tab: TabType) => {
     setLoading(true);
     try {
-      const [exec, costPred, secPred, compPred, opsPred, alertsData] = await Promise.all([
-        api.fetchExecutiveDashboard(),
-        api.fetchAIPrediction('cost'),
-        api.fetchAIPrediction('security'),
-        api.fetchAIPrediction('compliance'),
-        api.fetchAIPrediction('operations'),
-        api.fetchProactiveAlerts()
-      ]);
-      setExecutiveData(exec);
-      setPredictions({ cost: costPred, security: secPred, compliance: compPred, operations: opsPred });
-      setAlerts(alertsData.alerts || []);
+      if (tab === 'executive') {
+        const data = await fetchAIExecutiveDashboard();
+        setExecutiveData(data);
+      } else if (tab === 'alerts') {
+        const data = await fetchAIAlerts();
+        setAlerts(data.alerts || []);
+      } else if (['cost', 'security', 'compliance', 'operations'].includes(tab)) {
+        const data = await fetchAIPrediction(tab as any);
+        setPredictions(prev => ({ ...prev, [tab]: data }));
+      }
     } catch (error) {
-      console.error('Failed to load AI data:', error);
+      console.error('Error loading data:', error);
     }
     setLoading(false);
   };
 
-  const sendMessage = async () => {
+  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
     
-    const newMessages: Message[] = [...messages, { role: 'user', content: inputMessage }];
+    const newMessages = [...messages, { role: 'user' as const, content: inputMessage }];
     setMessages(newMessages);
     setInputMessage('');
-    setChatLoading(true);
-
+    
     try {
-      const response = await api.sendAIChat(
-        newMessages.map(m => ({ role: m.role, content: m.content })),
-        'AWS cloud governance assistant'
-      );
+      const response = await sendAIChat(newMessages);
       setMessages([...newMessages, { role: 'assistant', content: response.response }]);
     } catch (error) {
       setMessages([...newMessages, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
     }
-    setChatLoading(false);
   };
 
-  const tabs = [
-    { id: 'executive', label: 'Executive Dashboard', icon: BarChart3 },
-    { id: 'chat', label: 'AI Chat', icon: MessageSquare },
-    { id: 'cost', label: 'Cost Predictions', icon: DollarSign },
-    { id: 'security', label: 'Security Predictions', icon: Shield },
-    { id: 'compliance', label: 'Compliance Predictions', icon: CheckCircle },
-    { id: 'operations', label: 'Operations', icon: Activity },
-    { id: 'alerts', label: 'Proactive Alerts', icon: AlertTriangle }
-  ];
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity?.toLowerCase()) {
-      case 'high': case 'critical': return 'text-red-400 bg-red-400/10';
-      case 'medium': case 'warning': return 'text-yellow-400 bg-yellow-400/10';
-      default: return 'text-blue-400 bg-blue-400/10';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'attention_needed': return 'bg-red-500';
-      case 'on_track': case 'good': return 'bg-green-500';
-      default: return 'bg-yellow-500';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
-      </div>
-    );
-  }
-
-  return (
+  const renderExecutiveDashboard = () => (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Brain className="w-8 h-8 text-purple-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">AI Command Center</h1>
-            <p className="text-gray-400">AI-powered predictions and insights</p>
+      {executiveData && (
+        <>
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white">
+            <h3 className="text-xl font-bold mb-2">Executive Summary</h3>
+            <p className="text-lg opacity-90">{executiveData.summary}</p>
           </div>
-        </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-3xl font-bold text-indigo-600">{executiveData.risk_score}/100</div>
+              <div className="text-gray-500">Risk Score</div>
+              <div className={`text-sm ${executiveData.risk_trend === 'decreasing' ? 'text-green-500' : 'text-red-500'}`}>
+                {executiveData.risk_trend === 'decreasing' ? '↓ Improving' : '↑ Needs Attention'}
+              </div>
+            </div>
+          </div>
+
+          {executiveData.key_insights && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h4 className="font-semibold mb-4">Key Insights</h4>
+              <div className="space-y-3">
+                {executiveData.key_insights.map((insight: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded">
+                    <span className={`w-3 h-3 rounded-full ${
+                      insight.status === 'on_track' ? 'bg-green-500' : 'bg-yellow-500'
+                    }`}></span>
+                    <span className="font-medium">{insight.category}:</span>
+                    <span className="text-gray-600">{insight.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const renderChatAssistant = () => (
+    <div className="bg-white rounded-lg shadow h-[600px] flex flex-col">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 py-8">
+            <p className="text-lg mb-2">👋 Hi! I'm your AI Cloud Assistant</p>
+            <p>Ask me anything about your AWS environment, costs, security, or compliance.</p>
+          </div>
+        )}
+        {messages.map((msg, idx) => (
+          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[70%] rounded-lg p-3 ${
+              msg.role === 'user' 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t p-4 flex gap-2">
+        <input
+          type="text"
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+          placeholder="Ask about your cloud environment..."
+          className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
         <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          onClick={handleSendMessage}
+          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
         >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
+          Send
         </button>
       </div>
+    </div>
+  );
 
+  const renderPrediction = (type: string) => {
+    const data = predictions[type];
+    if (!data) return <div className="text-gray-500">Loading predictions...</div>;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {type === 'cost' && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-green-600">${data.next_month_forecast?.toLocaleString()}</div>
+                <div className="text-gray-500">Next Month Forecast</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-indigo-600">{(data.confidence * 100).toFixed(0)}%</div>
+                <div className="text-gray-500">Confidence</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className={`text-2xl font-bold ${data.trend === 'increasing' ? 'text-red-500' : 'text-green-500'}`}>
+                  {data.trend === 'increasing' ? '↑' : '↓'} {data.trend}
+                </div>
+                <div className="text-gray-500">Trend</div>
+              </div>
+            </>
+          )}
+          {type === 'security' && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-orange-600">{data.risk_score}/100</div>
+                <div className="text-gray-500">Risk Score</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-red-600">{data.predicted_incidents}</div>
+                <div className="text-gray-500">Predicted Incidents</div>
+              </div>
+            </>
+          )}
+          {type === 'compliance' && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-green-600">{data.projected_score}%</div>
+                <div className="text-gray-500">Projected Score</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-yellow-600">{data.at_risk_controls}</div>
+                <div className="text-gray-500">At-Risk Controls</div>
+              </div>
+            </>
+          )}
+          {type === 'operations' && (
+            <>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-orange-600">{data.predicted_incidents}</div>
+                <div className="text-gray-500">Predicted Incidents</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="text-2xl font-bold text-indigo-600">{data.deployment_risk_score}/100</div>
+                <div className="text-gray-500">Deployment Risk</div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {data.recommendations && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h4 className="font-semibold mb-4">AI Recommendations</h4>
+            <ul className="space-y-2">
+              {data.recommendations.map((rec: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span className="text-indigo-500">•</span>
+                  <span>{rec}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAlerts = () => (
+    <div className="space-y-4">
+      {alerts.length === 0 ? (
+        <div className="text-center text-gray-500 py-8">No proactive alerts at this time</div>
+      ) : (
+        alerts.map((alert, idx) => (
+          <div key={idx} className={`bg-white rounded-lg shadow p-4 border-l-4 ${
+            alert.severity === 'critical' ? 'border-red-500' :
+            alert.severity === 'high' ? 'border-orange-500' :
+            'border-yellow-500'
+          }`}>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-semibold">{alert.title}</h4>
+                <p className="text-gray-600 mt-1">{alert.message}</p>
+                <span className="inline-block mt-2 px-2 py-1 bg-gray-100 rounded text-sm">{alert.category}</span>
+              </div>
+              <span className={`px-2 py-1 rounded text-sm text-white ${
+                alert.severity === 'critical' ? 'bg-red-500' :
+                alert.severity === 'high' ? 'bg-orange-500' :
+                'bg-yellow-500'
+              }`}>
+                {alert.severity}
+              </span>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">🔮 AI Predictions</h1>
+      
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {tabs.map((tab) => (
+      <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
               activeTab === tab.id
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
-      {/* Executive Dashboard Tab */}
-      {activeTab === 'executive' && executiveData && (
-        <div className="space-y-6">
-          {/* Summary */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Executive Summary</h3>
-            <p className="text-gray-300">{executiveData.summary}</p>
-            <div className="mt-4 flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400">Risk Score:</span>
-                <span className={`font-bold ${executiveData.risk_score < 30 ? 'text-green-400' : executiveData.risk_score < 60 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {executiveData.risk_score}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className={`w-4 h-4 ${executiveData.risk_trend === 'decreasing' ? 'text-green-400' : 'text-red-400'}`} />
-                <span className="text-gray-400">{executiveData.risk_trend}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Key Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {executiveData.key_insights?.map((insight: any, index: number) => (
-              <div key={index} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-white font-semibold">{insight.category}</h4>
-                  <span className={`w-3 h-3 rounded-full ${getStatusColor(insight.status)}`}></span>
-                </div>
-                <p className="text-gray-300 mb-2">{insight.message}</p>
-                <div className="flex items-center gap-2 text-sm">
-                  <TrendingUp className={`w-4 h-4 ${insight.trend === 'improving' ? 'text-green-400' : 'text-yellow-400'}`} />
-                  <span className="text-gray-400">{insight.trend}</span>
-                </div>
-                <p className="text-purple-400 text-sm mt-2">→ {insight.action}</p>
-              </div>
-            ))}
-          </div>
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
-      )}
-
-      {/* AI Chat Tab */}
-      {activeTab === 'chat' && (
-        <div className="bg-gray-800 rounded-xl border border-gray-700 h-[600px] flex flex-col">
-          <div className="p-4 border-b border-gray-700">
-            <h3 className="text-white font-semibold">Chat with Claude AI</h3>
-            <p className="text-gray-400 text-sm">Ask about security, compliance, costs, or best practices</p>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
-                <Brain className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Start a conversation with AI</p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {['What are my top security risks?', 'How can I optimize costs?', 'Show compliance status'].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => setInputMessage(q)}
-                      className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm hover:bg-gray-600"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {messages.map((msg, index) => (
-              <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-lg p-4 ${
-                  msg.role === 'user' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-200'
-                }`}>
-                  <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
-                </div>
-              </div>
-            ))}
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-gray-700">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Ask about your AWS environment..."
-                className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={chatLoading || !inputMessage.trim()}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Prediction Tabs */}
-      {['cost', 'security', 'compliance', 'operations'].includes(activeTab) && predictions[activeTab] && (
-        <div className="space-y-6">
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4 capitalize">{activeTab} Prediction</h3>
-            
-            {activeTab === 'cost' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Next Month Forecast</p>
-                    <p className="text-2xl font-bold text-white">${predictions.cost.next_month_forecast?.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Confidence</p>
-                    <p className="text-2xl font-bold text-green-400">{(predictions.cost.confidence * 100).toFixed(0)}%</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Trend</p>
-                    <p className="text-2xl font-bold text-yellow-400 capitalize">{predictions.cost.trend}</p>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2">Contributing Factors</h4>
-                  <ul className="space-y-2">
-                    {predictions.cost.factors?.map((factor: string, i: number) => (
-                      <li key={i} className="text-gray-300 flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-yellow-400" />
-                        {factor}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'security' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Risk Score</p>
-                    <p className={`text-2xl font-bold ${predictions.security.risk_score < 30 ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {predictions.security.risk_score}
-                    </p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Trend</p>
-                    <p className="text-2xl font-bold text-gray-300 capitalize">{predictions.security.trend}</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Predicted Findings</p>
-                    <p className="text-2xl font-bold text-white">{predictions.security.predicted_findings}</p>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2">Top Risks</h4>
-                  <ul className="space-y-2">
-                    {predictions.security.top_risks?.map((risk: string, i: number) => (
-                      <li key={i} className="text-gray-300 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                        {risk}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'compliance' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Projected Score</p>
-                    <p className="text-2xl font-bold text-green-400">{predictions.compliance.projected_score}%</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Trend</p>
-                    <p className="text-2xl font-bold text-green-400 capitalize">{predictions.compliance.trend}</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">At-Risk Controls</p>
-                    <p className="text-2xl font-bold text-yellow-400">{predictions.compliance.at_risk_controls}</p>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2">Frameworks at Risk</h4>
-                  <div className="flex gap-2">
-                    {predictions.compliance.frameworks_at_risk?.map((fw: string, i: number) => (
-                      <span key={i} className="px-3 py-1 bg-yellow-400/10 text-yellow-400 rounded-full text-sm">
-                        {fw}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'operations' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Capacity Utilization</p>
-                    <p className="text-2xl font-bold text-white">{predictions.operations.capacity_utilization}%</p>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-sm">Predicted Scaling Events</p>
-                    <p className="text-2xl font-bold text-blue-400">{predictions.operations.scaling_events_predicted}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Recommendations */}
-            <div className="mt-6">
-              <h4 className="text-white font-medium mb-2">Recommendations</h4>
-              <ul className="space-y-2">
-                {predictions[activeTab].recommendations?.map((rec: string, i: number) => (
-                  <li key={i} className="text-gray-300 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-purple-400" />
-                    {rec}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Alerts Tab */}
-      {activeTab === 'alerts' && (
-        <div className="space-y-4">
-          {alerts.length === 0 ? (
-            <div className="bg-gray-800 rounded-xl p-8 text-center border border-gray-700">
-              <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
-              <p className="text-gray-400">No proactive alerts at this time</p>
-            </div>
-          ) : (
-            alerts.map((alert) => (
-              <div key={alert.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`p-2 rounded-lg ${getSeverityColor(alert.severity)}`}>
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">{alert.title}</h4>
-                      <p className="text-gray-400 mt-1">{alert.message}</p>
-                      <p className="text-purple-400 text-sm mt-2">→ {alert.recommended_action}</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 rounded text-xs ${getSeverityColor(alert.severity)}`}>
-                    {alert.severity}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+      ) : (
+        <>
+          {activeTab === 'executive' && renderExecutiveDashboard()}
+          {activeTab === 'chat' && renderChatAssistant()}
+          {activeTab === 'cost' && renderPrediction('cost')}
+          {activeTab === 'security' && renderPrediction('security')}
+          {activeTab === 'compliance' && renderPrediction('compliance')}
+          {activeTab === 'operations' && renderPrediction('operations')}
+          {activeTab === 'alerts' && renderAlerts()}
+        </>
       )}
     </div>
   );

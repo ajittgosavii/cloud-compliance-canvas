@@ -1,20 +1,18 @@
-import { useState, useEffect } from 'react';
-import { 
-  CheckCircle, RefreshCw, AlertTriangle, TrendingUp, 
-  FileText, Shield, Award, Clock, BarChart3
-} from 'lucide-react';
-import * as api from '../services/api';
+import React, { useState, useEffect } from 'react';
+import {
+  fetchComplianceScore,
+  fetchComplianceFrameworks,
+  fetchComplianceUnified,
+  fetchComplianceControls
+} from '../services/api';
 
-interface CompliancePageProps {
-  demoMode?: boolean;
-}
-
-export default function CompliancePage({ demoMode = true }: CompliancePageProps) {
-  const [activeTab, setActiveTab] = useState('unified');
-  const [unifiedData, setUnifiedData] = useState<any>(null);
+export default function CompliancePage() {
+  const [loading, setLoading] = useState(false);
+  const [score, setScore] = useState<any>(null);
   const [frameworks, setFrameworks] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [unified, setUnified] = useState<any>(null);
+  const [controls, setControls] = useState<any>(null);
+  const [selectedFramework, setSelectedFramework] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -23,306 +21,133 @@ export default function CompliancePage({ demoMode = true }: CompliancePageProps)
   const loadData = async () => {
     setLoading(true);
     try {
-      const [unified, fw, hist] = await Promise.all([
-        api.fetchUnifiedCompliance(),
-        api.fetchComplianceFrameworks(),
-        api.fetchComplianceHistory(30)
+      const [scoreData, frameworksData, unifiedData, controlsData] = await Promise.all([
+        fetchComplianceScore(),
+        fetchComplianceFrameworks(),
+        fetchComplianceUnified(),
+        fetchComplianceControls()
       ]);
-      setUnifiedData(unified);
-      setFrameworks(fw.frameworks || []);
-      setHistory(hist.history || []);
+      setScore(scoreData);
+      setFrameworks(frameworksData.frameworks || []);
+      setUnified(unifiedData);
+      setControls(controlsData);
     } catch (error) {
-      console.error('Failed to load compliance:', error);
+      console.error('Error loading data:', error);
     }
     setLoading(false);
   };
 
-  const tabs = [
-    { id: 'unified', label: 'Unified View', icon: Shield },
-    { id: 'frameworks', label: 'Frameworks', icon: FileText },
-    { id: 'history', label: 'Trends', icon: BarChart3 }
-  ];
-
   const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-400';
-    if (score >= 80) return 'text-yellow-400';
-    if (score >= 70) return 'text-orange-400';
-    return 'text-red-400';
+    if (score >= 90) return 'text-green-600';
+    if (score >= 70) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
-  const getStatusBadge = (status: string) => {
-    return status === 'Compliant' 
-      ? 'bg-green-400/10 text-green-400 border-green-400/30'
-      : 'bg-red-400/10 text-red-400 border-red-400/30';
+  const getScoreBg = (score: number) => {
+    if (score >= 90) return 'bg-green-100';
+    if (score >= 70) return 'bg-yellow-100';
+    return 'bg-red-100';
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 text-green-400 animate-spin" />
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <CheckCircle className="w-8 h-8 text-green-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Compliance</h1>
-            <p className="text-gray-400">Unified compliance monitoring</p>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">🎯 Compliance</h1>
+
+      {/* Overall Score */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow p-6 col-span-1 md:col-span-2">
+          <div className="flex items-center gap-6">
+            <div className={`text-6xl font-bold ${getScoreColor(score?.score || 0)}`}>
+              {score?.score || 0}%
+            </div>
+            <div>
+              <div className="text-xl font-semibold">Overall Compliance Score</div>
+              <div className={`text-sm ${score?.trend === 'improving' ? 'text-green-600' : 'text-red-600'}`}>
+                {score?.trend === 'improving' ? '↑ Improving' : '↓ Declining'}
+              </div>
+            </div>
           </div>
         </div>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
 
-      {/* Summary Cards */}
-      {unifiedData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <p className="text-gray-400 text-sm">Overall Score</p>
-            <p className={`text-4xl font-bold ${getScoreColor(unifiedData.overall_score)}`}>
-              {unifiedData.overall_score}%
-            </p>
+        {unified?.sources && Object.entries(unified.sources).map(([source, data]: [string, any]) => (
+          <div key={source} className="bg-white rounded-lg shadow p-4">
+            <div className="text-lg font-semibold">{source}</div>
+            <div className={`text-2xl font-bold ${getScoreColor(data.score)}`}>{data.score}%</div>
+            <div className="text-sm text-gray-500">{data.findings || data.rules || 0} items</div>
           </div>
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <p className="text-gray-400 text-sm">Total Controls</p>
-            <p className="text-4xl font-bold text-white">{unifiedData.total_controls}</p>
-          </div>
-          <div className="bg-gray-800 rounded-xl p-6 border border-green-500/30">
-            <p className="text-gray-400 text-sm">Passed</p>
-            <p className="text-4xl font-bold text-green-400">{unifiedData.passed_controls}</p>
-          </div>
-          <div className="bg-gray-800 rounded-xl p-6 border border-red-500/30">
-            <p className="text-gray-400 text-sm">Failed</p>
-            <p className="text-4xl font-bold text-red-400">{unifiedData.failed_controls}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-              activeTab === tab.id
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
         ))}
       </div>
 
-      {/* Unified View Tab */}
-      {activeTab === 'unified' && unifiedData && (
-        <div className="space-y-6">
-          {/* Sources */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Compliance by Source</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-              {Object.entries(unifiedData.sources || {}).map(([source, data]: [string, any]) => (
-                <div key={source} className="bg-gray-700/50 rounded-lg p-4 text-center">
-                  <p className="text-gray-400 text-xs mb-2">{source}</p>
-                  <p className={`text-2xl font-bold ${getScoreColor(data.score)}`}>
-                    {data.score}%
-                  </p>
-                  <p className="text-gray-500 text-xs mt-1">{data.findings} findings</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Frameworks Summary */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Framework Compliance</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {frameworks.map((fw) => (
-                <div 
-                  key={fw.name}
-                  className="bg-gray-700/50 rounded-lg p-4 border border-gray-600"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Award className="w-5 h-5 text-yellow-400" />
-                      <span className="text-white font-medium">{fw.name}</span>
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs border ${getStatusBadge(fw.status)}`}>
-                      {fw.status}
-                    </span>
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="mb-2">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-400">{fw.passed_controls}/{fw.total_controls} controls</span>
-                      <span className={getScoreColor(fw.score)}>{fw.score}%</span>
-                    </div>
-                    <div className="w-full bg-gray-600 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          fw.score >= 90 ? 'bg-green-400' : fw.score >= 80 ? 'bg-yellow-400' : 'bg-red-400'
-                        }`}
-                        style={{ width: `${fw.score}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-500">{fw.category}</span>
-                    <span className="text-gray-600">•</span>
-                    <span className={`flex items-center gap-1 ${
-                      fw.trend === 'improving' ? 'text-green-400' : 'text-yellow-400'
-                    }`}>
-                      <TrendingUp className="w-3 h-3" />
-                      {fw.trend}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Frameworks Tab */}
-      {activeTab === 'frameworks' && (
-        <div className="space-y-4">
-          {frameworks.map((fw) => (
-            <div key={fw.name} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Award className={`w-6 h-6 ${getScoreColor(fw.score)}`} />
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{fw.name}</h3>
-                    <p className="text-gray-400 text-sm">{fw.category}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-3xl font-bold ${getScoreColor(fw.score)}`}>{fw.score}%</p>
-                  <span className={`px-2 py-1 rounded text-xs border ${getStatusBadge(fw.status)}`}>
-                    {fw.status}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-gray-700/50 rounded-lg p-3 text-center">
-                  <p className="text-gray-400 text-sm">Total Controls</p>
-                  <p className="text-xl font-bold text-white">{fw.total_controls}</p>
-                </div>
-                <div className="bg-green-400/10 rounded-lg p-3 text-center">
-                  <p className="text-gray-400 text-sm">Passed</p>
-                  <p className="text-xl font-bold text-green-400">{fw.passed_controls}</p>
-                </div>
-                <div className="bg-red-400/10 rounded-lg p-3 text-center">
-                  <p className="text-gray-400 text-sm">Failed</p>
-                  <p className="text-xl font-bold text-red-400">{fw.failed_controls}</p>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-700 rounded-full h-3">
-                <div 
-                  className={`h-3 rounded-full transition-all ${
-                    fw.score >= 90 ? 'bg-green-400' : fw.score >= 80 ? 'bg-yellow-400' : 'bg-red-400'
-                  }`}
-                  style={{ width: `${fw.score}%` }}
-                ></div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 text-sm text-gray-400">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  Last assessed: {new Date(fw.last_assessment).toLocaleDateString()}
-                </span>
-                <span className={`flex items-center gap-1 ${
-                  fw.trend === 'improving' ? 'text-green-400' : 'text-yellow-400'
+      {/* Frameworks */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 className="font-semibold mb-4">Compliance Frameworks</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {frameworks.map((fw, idx) => (
+            <div 
+              key={idx} 
+              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                selectedFramework === fw.name 
+                  ? 'border-indigo-500 bg-indigo-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedFramework(fw.name === selectedFramework ? '' : fw.name)}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-semibold">{fw.name}</span>
+                <span className={`px-2 py-1 rounded text-sm ${
+                  fw.status === 'Compliant' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}>
-                  <TrendingUp className="w-4 h-4" />
-                  {fw.trend}
+                  {fw.status}
                 </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className={`text-3xl font-bold ${getScoreColor(fw.score)}`}>{fw.score}%</div>
+                <div className="flex-1">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${getScoreBg(fw.score).replace('bg-', 'bg-').replace('-100', '-500')}`}
+                      style={{ width: `${fw.score}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {fw.passed}/{fw.total_controls} controls passed
+                  </div>
+                </div>
               </div>
             </div>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* History Tab */}
-      {activeTab === 'history' && (
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4">Compliance Trend (30 Days)</h3>
-          
-          {/* Simple trend visualization */}
-          <div className="h-64 flex items-end gap-1">
-            {history.map((day, index) => (
-              <div 
-                key={index}
-                className="flex-1 flex flex-col items-center"
-              >
-                <div 
-                  className={`w-full rounded-t ${
-                    day.score >= 90 ? 'bg-green-400' : day.score >= 80 ? 'bg-yellow-400' : 'bg-red-400'
-                  }`}
-                  style={{ height: `${(day.score / 100) * 100}%` }}
-                  title={`${day.date}: ${day.score}%`}
-                ></div>
+      {/* Controls Detail */}
+      {controls?.frameworks && selectedFramework && controls.frameworks[selectedFramework] && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">{selectedFramework} Controls</h3>
+          <div className="space-y-3">
+            {controls.frameworks[selectedFramework].controls?.map((control: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between p-3 border rounded">
+                <div>
+                  <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded mr-2">{control.id}</span>
+                  <span>{control.name}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">{control.evidence} evidence items</span>
+                  <span className={`px-2 py-1 rounded text-sm ${
+                    control.status === 'COMPLIANT' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {control.status}
+                  </span>
+                </div>
               </div>
             ))}
-          </div>
-          
-          {/* Legend */}
-          <div className="flex items-center justify-between mt-4 text-sm text-gray-400">
-            <span>30 days ago</span>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-green-400"></div>
-                ≥90%
-              </span>
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-yellow-400"></div>
-                80-89%
-              </span>
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-red-400"></div>
-                &lt;80%
-              </span>
-            </div>
-            <span>Today</span>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-6">
-            <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Average Score</p>
-              <p className="text-2xl font-bold text-white">
-                {(history.reduce((acc, d) => acc + d.score, 0) / history.length).toFixed(1)}%
-              </p>
-            </div>
-            <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Highest</p>
-              <p className="text-2xl font-bold text-green-400">
-                {Math.max(...history.map(d => d.score))}%
-              </p>
-            </div>
-            <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Lowest</p>
-              <p className="text-2xl font-bold text-red-400">
-                {Math.min(...history.map(d => d.score))}%
-              </p>
-            </div>
           </div>
         </div>
       )}

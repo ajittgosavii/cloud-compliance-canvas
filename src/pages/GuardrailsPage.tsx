@@ -1,383 +1,305 @@
-import { useState, useEffect } from 'react';
-import { 
-  Shield, FileCode, AlertTriangle, CheckCircle, RefreshCw, 
-  Play, Eye, ChevronRight, Filter, Search, Lock
-} from 'lucide-react';
-import * as api from '../services/api';
+import React, { useState, useEffect } from 'react';
+import {
+  fetchGuardrailsSCP,
+  fetchGuardrailsOPA,
+  fetchGuardrailsKICS,
+  fetchGuardrailsGHAS,
+  fetchGuardrailsPRCompliance,
+  fetchGuardrailsProbot,
+  fetchGuardrailsAWSTools,
+  fetchGuardrailsFinOpsTools,
+  fetchGuardrailsAIAgents
+} from '../services/api';
 
-interface GuardrailsPageProps {
-  demoMode?: boolean;
-}
+type TabType = 'scp' | 'opa' | 'kics' | 'ghas' | 'pr-compliance' | 'probot' | 'aws-tools' | 'finops-tools' | 'ai-agents';
 
-export default function GuardrailsPage({ demoMode = true }: GuardrailsPageProps) {
-  const [activeTab, setActiveTab] = useState('scp');
-  const [scpPolicies, setSCPPolicies] = useState<any[]>([]);
-  const [opaPolicies, setOPAPolicies] = useState<any[]>([]);
-  const [kicsResults, setKICSResults] = useState<any>(null);
-  const [violations, setViolations] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedPolicy, setSelectedPolicy] = useState<any>(null);
-  const [deployModalOpen, setDeployModalOpen] = useState(false);
+export default function GuardrailsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('scp');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Record<string, any>>({});
+
+  const tabs: { id: TabType; label: string; icon: string }[] = [
+    { id: 'scp', label: 'SCP', icon: '🔒' },
+    { id: 'opa', label: 'OPA', icon: '📜' },
+    { id: 'kics', label: 'KICS', icon: '🔍' },
+    { id: 'ghas', label: 'GitHub Security', icon: '🐙' },
+    { id: 'pr-compliance', label: 'PR Compliance', icon: '✅' },
+    { id: 'probot', label: 'Probot Apps', icon: '🤖' },
+    { id: 'aws-tools', label: 'AWS Tools', icon: '☁️' },
+    { id: 'finops-tools', label: 'FinOps Tools', icon: '💰' },
+    { id: 'ai-agents', label: 'AI Agents', icon: '🧠' },
+  ];
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadTabData(activeTab);
+  }, [activeTab]);
 
-  const loadData = async () => {
+  const loadTabData = async (tab: TabType) => {
     setLoading(true);
     try {
-      const [scp, opa, kics, viols] = await Promise.all([
-        api.fetchSCPPolicies(),
-        api.fetchOPAPolicies(),
-        api.fetchKICSResults(),
-        api.fetchGuardrailViolations()
-      ]);
-      setSCPPolicies(scp.policies || []);
-      setOPAPolicies(opa.policies || []);
-      setKICSResults(kics);
-      setViolations(viols);
+      let result;
+      switch (tab) {
+        case 'scp': result = await fetchGuardrailsSCP(); break;
+        case 'opa': result = await fetchGuardrailsOPA(); break;
+        case 'kics': result = await fetchGuardrailsKICS(); break;
+        case 'ghas': result = await fetchGuardrailsGHAS(); break;
+        case 'pr-compliance': result = await fetchGuardrailsPRCompliance(); break;
+        case 'probot': result = await fetchGuardrailsProbot(); break;
+        case 'aws-tools': result = await fetchGuardrailsAWSTools(); break;
+        case 'finops-tools': result = await fetchGuardrailsFinOpsTools(); break;
+        case 'ai-agents': result = await fetchGuardrailsAIAgents(); break;
+      }
+      setData(prev => ({ ...prev, [tab]: result }));
     } catch (error) {
-      console.error('Failed to load guardrails:', error);
+      console.error('Error loading data:', error);
     }
     setLoading(false);
   };
 
-  const handleDeploy = async (policy: any, dryRun: boolean = true) => {
-    try {
-      const result = await api.deployGuardrail({
-        policy_type: activeTab,
-        policy_id: policy.id,
-        target_accounts: ['all'],
-        dry_run: dryRun
-      });
-      alert(result.message || 'Deployment initiated');
-    } catch (error) {
-      console.error('Deploy failed:', error);
-    }
-  };
+  const renderSCP = () => {
+    const d = data.scp;
+    if (!d) return null;
 
-  const tabs = [
-    { id: 'scp', label: 'Service Control Policies', icon: Lock, count: scpPolicies.length },
-    { id: 'opa', label: 'OPA Policies', icon: FileCode, count: opaPolicies.length },
-    { id: 'kics', label: 'KICS Scanning', icon: Search, count: kicsResults?.total_findings || 0 },
-    { id: 'violations', label: 'All Violations', icon: AlertTriangle, count: violations?.total || 0 }
-  ];
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity?.toUpperCase()) {
-      case 'CRITICAL': return 'text-red-400 bg-red-400/10 border-red-400/30';
-      case 'HIGH': return 'text-orange-400 bg-orange-400/10 border-orange-400/30';
-      case 'MEDIUM': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30';
-      case 'LOW': return 'text-blue-400 bg-blue-400/10 border-blue-400/30';
-      default: return 'text-gray-400 bg-gray-400/10 border-gray-400/30';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case 'ACTIVE': return 'bg-green-400/10 text-green-400';
-      case 'DRAFT': return 'bg-yellow-400/10 text-yellow-400';
-      default: return 'bg-gray-400/10 text-gray-400';
-    }
-  };
-
-  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className="w-8 h-8 text-blue-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Tech Guardrails</h1>
-            <p className="text-gray-400">Policy management and enforcement</p>
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">Service Control Policies</h3>
+          <div className="space-y-3">
+            {d.policies?.map((policy: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <div className="font-medium">{policy.name}</div>
+                  <div className="text-sm text-gray-500">{policy.description || policy.id}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {policy.aws_managed && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">AWS Managed</span>
+                  )}
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">Active</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
       </div>
+    );
+  };
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {tabs.map((tab) => (
-          <div
+  const renderOPA = () => {
+    const d = data.opa;
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">OPA Policies</h3>
+          <div className="space-y-3">
+            {d.policies?.map((policy: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <div className="font-medium">{policy.name}</div>
+                  <div className="text-sm text-gray-500">ID: {policy.id}</div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-red-600 font-medium">{policy.violations} violations</span>
+                  <span className={`px-2 py-1 rounded text-sm ${
+                    policy.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100'
+                  }`}>{policy.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGHAS = () => {
+    const d = data.ghas;
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-3xl font-bold text-indigo-600">{d.enabled_repos}/{d.total_repos}</div>
+            <div className="text-gray-500">Enabled Repos</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-3xl font-bold text-orange-600">{d.secret_scanning?.open || 0}</div>
+            <div className="text-gray-500">Open Secrets</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-3xl font-bold text-red-600">{d.code_scanning?.critical || 0}</div>
+            <div className="text-gray-500">Critical Code Issues</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-3xl font-bold text-yellow-600">{d.dependabot?.alerts || 0}</div>
+            <div className="text-gray-500">Dependabot Alerts</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🔐 Secret Scanning</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Alerts</span><span>{d.secret_scanning?.alerts}</span></div>
+              <div className="flex justify-between"><span>Resolved</span><span className="text-green-600">{d.secret_scanning?.resolved}</span></div>
+              <div className="flex justify-between"><span>Open</span><span className="text-red-600">{d.secret_scanning?.open}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🛡️ Push Protection</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Status</span><span className="text-green-600">{d.push_protection?.enabled ? 'Enabled' : 'Disabled'}</span></div>
+              <div className="flex justify-between"><span>Blocked Secrets</span><span>{d.push_protection?.blocked_secrets}</span></div>
+              <div className="flex justify-between"><span>Bypassed</span><span className="text-yellow-600">{d.push_protection?.bypassed}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAWSTools = () => {
+    const d = data['aws-tools'];
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🏗️ Control Tower</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Landing Zone</span><span>v{d.control_tower?.landing_zone_version}</span></div>
+              <div className="flex justify-between"><span>Governed Accounts</span><span>{d.control_tower?.governed_accounts}</span></div>
+              <div className="flex justify-between"><span>Guardrails Enabled</span><span>{d.control_tower?.guardrails_enabled}</span></div>
+              <div className="flex justify-between"><span>Drift Detected</span><span className={d.control_tower?.drift_detected > 0 ? 'text-red-600' : 'text-green-600'}>{d.control_tower?.drift_detected}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🏢 Organizations</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Total Accounts</span><span>{d.organizations?.total_accounts}</span></div>
+              <div className="flex justify-between"><span>OUs</span><span>{d.organizations?.ous}</span></div>
+              <div className="flex justify-between"><span>SCPs Attached</span><span>{d.organizations?.scps_attached}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">⚙️ AWS Config</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Enabled Regions</span><span>{d.config?.enabled_regions}</span></div>
+              <div className="flex justify-between"><span>Rules</span><span>{d.config?.rules}</span></div>
+              <div className="flex justify-between"><span>Compliant</span><span className="text-green-600">{d.config?.compliant_resources?.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Non-Compliant</span><span className="text-red-600">{d.config?.non_compliant_resources}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🛡️ Security Hub</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Score</span><span className="font-bold text-indigo-600">{d.security_hub?.score}%</span></div>
+              <div className="flex justify-between"><span>Standards</span><span>{d.security_hub?.standards?.join(', ')}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAIAgents = () => {
+    const d = data['ai-agents'];
+    if (!d) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">🪨 Amazon Bedrock</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Guardrails</span><span className="text-green-600">{d.bedrock?.guardrails_enabled ? 'Enabled' : 'Disabled'}</span></div>
+              <div className="flex justify-between"><span>Content Filters</span><span>{d.bedrock?.content_filters?.join(', ')}</span></div>
+              <div className="flex justify-between"><span>Blocked (7d)</span><span className="text-red-600">{d.bedrock?.blocked_requests_7d}</span></div>
+              <div className="flex justify-between"><span>Allowed Models</span><span>{d.bedrock?.models_allowed?.join(', ')}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="font-semibold mb-4">💰 Cost Controls</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Monthly Limit</span><span>${d.cost_controls?.monthly_limit?.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Current Spend</span><span>${d.cost_controls?.current_spend?.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Projected</span><span>${d.cost_controls?.projected?.toLocaleString()}</span></div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-indigo-600 h-2 rounded-full" 
+                  style={{ width: `${(d.cost_controls?.current_spend / d.cost_controls?.monthly_limit) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold mb-4">AI Policies</h3>
+          <div className="space-y-3">
+            {d.ai_policies?.map((policy: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between p-3 border rounded">
+                <span className="font-medium">{policy.name}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-orange-600">{policy.violations_7d || policy.logged_7d || 0} events</span>
+                  <span className={`px-2 py-1 rounded text-sm ${
+                    policy.status === 'enforcing' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                  }`}>{policy.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">🚧 Guardrails</h1>
+      
+      <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
+        {tabs.map(tab => (
+          <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`bg-gray-800 rounded-xl p-4 border cursor-pointer transition-all ${
-              activeTab === tab.id ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-gray-600'
+            className={`px-3 py-2 rounded-lg flex items-center gap-1 text-sm ${
+              activeTab === tab.id
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <tab.icon className={`w-6 h-6 ${activeTab === tab.id ? 'text-blue-400' : 'text-gray-400'}`} />
-              <span className="text-2xl font-bold text-white">{tab.count}</span>
-            </div>
-            <p className="text-gray-400 mt-2 text-sm">{tab.label}</p>
-          </div>
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
         ))}
       </div>
 
-      {/* Tabs Content */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700">
-        {/* Tab Header */}
-        <div className="flex border-b border-gray-700 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
-
-        {/* SCP Policies Tab */}
-        {activeTab === 'scp' && (
-          <div className="p-6">
-            <div className="space-y-4">
-              {scpPolicies.map((policy) => (
-                <div
-                  key={policy.id}
-                  className="bg-gray-700/50 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <h4 className="text-white font-semibold">{policy.name}</h4>
-                        <span className={`px-2 py-0.5 rounded text-xs ${getStatusBadge(policy.status)}`}>
-                          {policy.status}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-xs bg-gray-600 text-gray-300">
-                          {policy.type}
-                        </span>
-                      </div>
-                      <p className="text-gray-400 mt-1 text-sm">{policy.description}</p>
-                      <div className="flex items-center gap-4 mt-3 text-sm">
-                        <span className="text-gray-500">
-                          Targets: {policy.targets?.length || 0}
-                        </span>
-                        {policy.violations > 0 && (
-                          <span className="text-red-400 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
-                            {policy.violations} violations
-                          </span>
-                        )}
-                        <span className="text-green-400">
-                          {policy.compliance_rate}% compliant
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedPolicy(policy)}
-                        className="p-2 bg-gray-600 rounded-lg hover:bg-gray-500 text-gray-300"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeploy(policy, true)}
-                        className="p-2 bg-blue-600 rounded-lg hover:bg-blue-500 text-white"
-                      >
-                        <Play className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* OPA Policies Tab */}
-        {activeTab === 'opa' && (
-          <div className="p-6">
-            <div className="space-y-4">
-              {opaPolicies.map((policy) => (
-                <div
-                  key={policy.id}
-                  className="bg-gray-700/50 rounded-lg p-4 border border-gray-600"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h4 className="text-white font-semibold">{policy.name}</h4>
-                        <span className={`px-2 py-0.5 rounded text-xs ${getStatusBadge(policy.status)}`}>
-                          {policy.status}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-xs bg-purple-400/10 text-purple-400">
-                          {policy.language}
-                        </span>
-                      </div>
-                      <p className="text-gray-400 mt-1 text-sm">{policy.description}</p>
-                      {policy.violations > 0 && (
-                        <p className="text-red-400 mt-2 text-sm flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          {policy.violations} active violations
-                        </p>
-                      )}
-                    </div>
-                    <button className="p-2 bg-gray-600 rounded-lg hover:bg-gray-500 text-gray-300">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* KICS Tab */}
-        {activeTab === 'kics' && kicsResults && (
-          <div className="p-6">
-            {/* KICS Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {Object.entries(kicsResults.by_severity || {}).map(([severity, count]) => (
-                <div key={severity} className={`rounded-lg p-4 border ${getSeverityColor(severity)}`}>
-                  <p className="text-sm opacity-80">{severity}</p>
-                  <p className="text-2xl font-bold">{count as number}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* KICS Findings */}
-            <div className="space-y-3">
-              <h4 className="text-white font-semibold">Infrastructure as Code Findings</h4>
-              {kicsResults.findings?.slice(0, 20).map((finding: any) => (
-                <div
-                  key={finding.id}
-                  className="bg-gray-700/50 rounded-lg p-4 border border-gray-600"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${getSeverityColor(finding.severity)}`}>
-                          {finding.severity}
-                        </span>
-                        <span className="text-white font-medium">{finding.query_name}</span>
-                      </div>
-                      <p className="text-gray-400 text-sm mt-1">
-                        {finding.file}:{finding.line}
-                      </p>
-                      <p className="text-gray-500 text-sm mt-1">{finding.category}</p>
-                    </div>
-                    <button className="text-blue-400 hover:text-blue-300 text-sm">
-                      View Fix
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* All Violations Tab */}
-        {activeTab === 'violations' && violations && (
-          <div className="p-6">
-            {/* Violations Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">SCP Violations</p>
-                <p className="text-2xl font-bold text-white">{violations.scp_violations}</p>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">OPA Violations</p>
-                <p className="text-2xl font-bold text-white">{violations.opa_violations}</p>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">KICS Findings</p>
-                <p className="text-2xl font-bold text-white">{violations.kics_violations}</p>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Total</p>
-                <p className="text-2xl font-bold text-red-400">{violations.total}</p>
-              </div>
-            </div>
-
-            {/* By Severity */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(violations.by_severity || {}).map(([severity, count]) => (
-                <div key={severity} className={`rounded-lg p-4 border ${getSeverityColor(severity)}`}>
-                  <p className="text-sm opacity-80">{severity}</p>
-                  <p className="text-2xl font-bold">{count as number}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Policy Detail Modal */}
-      {selectedPolicy && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedPolicy(null)}>
-          <div className="bg-gray-800 rounded-xl p-6 max-w-2xl w-full mx-4 border border-gray-700" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white mb-4">{selectedPolicy.name}</h3>
-            <p className="text-gray-400 mb-4">{selectedPolicy.description}</p>
-            
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-gray-500 text-sm">Status</p>
-                <p className="text-white">{selectedPolicy.status}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm">Type</p>
-                <p className="text-white">{selectedPolicy.type}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm">Created</p>
-                <p className="text-white">{new Date(selectedPolicy.created_at).toLocaleDateString()}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm">Last Modified</p>
-                <p className="text-white">{new Date(selectedPolicy.last_modified).toLocaleDateString()}</p>
-              </div>
-            </div>
-
-            {selectedPolicy.targets?.length > 0 && (
-              <div className="mb-4">
-                <p className="text-gray-500 text-sm mb-2">Targets</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedPolicy.targets.map((target: string, i: number) => (
-                    <span key={i} className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-sm">
-                      {target}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setSelectedPolicy(null)}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => handleDeploy(selectedPolicy, false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500"
-              >
-                Deploy Policy
-              </button>
-            </div>
-          </div>
-        </div>
+      ) : (
+        <>
+          {activeTab === 'scp' && renderSCP()}
+          {activeTab === 'opa' && renderOPA()}
+          {activeTab === 'ghas' && renderGHAS()}
+          {activeTab === 'aws-tools' && renderAWSTools()}
+          {activeTab === 'ai-agents' && renderAIAgents()}
+          {activeTab === 'kics' && <div className="bg-white rounded-lg shadow p-6"><h3>KICS IaC Scanning</h3><p className="text-gray-500">KICS scan results will appear here</p></div>}
+          {activeTab === 'pr-compliance' && <div className="bg-white rounded-lg shadow p-6"><h3>PR Compliance</h3><p className="text-gray-500">PolicyBot/Bulldozer status will appear here</p></div>}
+          {activeTab === 'probot' && <div className="bg-white rounded-lg shadow p-6"><h3>Probot Apps</h3><p className="text-gray-500">Custom Probot apps status will appear here</p></div>}
+          {activeTab === 'finops-tools' && <div className="bg-white rounded-lg shadow p-6"><h3>FinOps Tools</h3><p className="text-gray-500">FinOps policy tools will appear here</p></div>}
+        </>
       )}
     </div>
   );
