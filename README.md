@@ -1,195 +1,143 @@
-# Cloud Compliance Canvas
+# Cloud Compliance Canvas - React Frontend v3.0.0
 
-**Enterprise AWS Governance Platform** - React + FastAPI on AWS
+A modern React dashboard for AWS cloud governance, security, compliance, and cost management.
 
-![AWS](https://img.shields.io/badge/AWS-Amplify-orange?logo=amazonaws)
-![React](https://img.shields.io/badge/React-18-blue?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
-![FastAPI](https://img.shields.io/badge/FastAPI-Python-green?logo=fastapi)
+## Features
 
----
+### 10 Complete Modules
 
-## 🚀 Quick Start
+1. **Dashboard** - Unified overview of all metrics
+2. **AI Command Center** - Claude AI-powered predictions, chat, and alerts
+3. **Security** - Security Hub, GuardDuty, Config Rules, Inspector
+4. **Compliance** - Unified multi-source compliance monitoring
+5. **Vulnerabilities** - Inspector, EKS, and Container vulnerabilities
+6. **Tech Guardrails** - SCP, OPA, and KICS policy management
+7. **Remediation** - AI-powered threat analysis and code generation
+8. **Account Lifecycle** - AWS account provisioning and management
+9. **FinOps** - Cost management, budgets, anomalies, savings
+10. **Integrations** - Jira, Slack, ServiceNow, PagerDuty, GitHub
 
-### Deploy to AWS (15 minutes)
+## Quick Start
 
-```bash
-# 1. Extract the project
-unzip react-finops-app-complete.zip
-cd react-finops-app
+### Prerequisites
 
-# 2. Configure AWS
-aws configure  # Enter your credentials
+- Node.js 18+
+- npm or yarn
 
-# 3. Deploy everything
-chmod +x infrastructure/scripts/deploy.sh
-./infrastructure/scripts/deploy.sh
-```
-
-**Done!** Your app will be live at `https://main.xxxxx.amplifyapp.com`
-
----
-
-## 📖 Documentation
-
-| Guide | Description |
-|-------|-------------|
-| [COMPLETE_DEPLOYMENT_GUIDE.md](COMPLETE_DEPLOYMENT_GUIDE.md) | **Start here!** Full step-by-step deployment |
-| [AWS_AMPLIFY_DEPLOYMENT.md](AWS_AMPLIFY_DEPLOYMENT.md) | Frontend deployment details |
-| [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | Streamlit → React migration notes |
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CloudFront CDN                           │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                ┌───────────────┴───────────────┐
-                ▼                               ▼
-┌───────────────────────────┐   ┌───────────────────────────────┐
-│      AWS Amplify          │   │      API Gateway              │
-│   (React Frontend)        │   │   /api/* → Lambda             │
-│                           │   └───────────────────────────────┘
-│  • Dashboard              │                   │
-│  • Security               │                   ▼
-│  • Compliance             │   ┌───────────────────────────────┐
-│  • FinOps                 │   │      AWS Lambda               │
-│  • Guardrails             │   │   (FastAPI Backend)           │
-│  • Remediation            │   │                               │
-│  • Accounts               │   │  • boto3 → AWS APIs           │
-│  • AI Predictions         │   │  • anthropic → Claude AI      │
-└───────────────────────────┘   │  • pandas → Data processing   │
-                                └───────────────────────────────┘
-                                            │
-                    ┌───────────────────────┼───────────────────────┐
-                    ▼                       ▼                       ▼
-            ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-            │Security Hub │         │Cost Explorer│         │   Claude    │
-            │ GuardDuty   │         │  Budgets    │         │     AI      │
-            │ Inspector   │         │    CE       │         │             │
-            └─────────────┘         └─────────────┘         └─────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-react-finops-app/
-├── src/                          # React Frontend
-│   ├── pages/                    # 10 page components
-│   ├── components/               # Reusable UI components
-│   ├── stores/                   # Zustand state management
-│   ├── services/                 # API client
-│   └── types/                    # TypeScript definitions
-│
-├── infrastructure/               # AWS Infrastructure
-│   ├── lambda/                   # FastAPI backend code
-│   │   ├── app.py               # Main API application
-│   │   └── requirements.txt     # Python dependencies
-│   ├── cloudformation/          # Full stack CloudFormation
-│   ├── scripts/                 # Deployment scripts
-│   ├── template.yaml            # SAM template
-│   └── samconfig.toml           # SAM configuration
-│
-├── amplify.yml                   # Amplify build settings
-├── package.json                  # npm dependencies
-├── vite.config.ts               # Vite configuration
-└── COMPLETE_DEPLOYMENT_GUIDE.md # Deployment instructions
-```
-
----
-
-## ✨ Features
-
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Dashboard** | ✅ | Executive overview with KPIs |
-| **Security** | ✅ | Security Hub, GuardDuty, Inspector |
-| **Compliance** | ✅ | SOC 2, PCI-DSS, HIPAA, GDPR, ISO 27001 |
-| **FinOps** | ✅ | Cost analysis, budgets, savings |
-| **Guardrails** | ✅ | SCP, OPA, KICS policies |
-| **Remediation** | ✅ | Auto-generated fix scripts |
-| **Accounts** | ✅ | Multi-account management |
-| **AI Predictions** | ✅ | Claude-powered insights |
-| **Azure AD SSO** | ✅ | Enterprise authentication |
-| **Demo Mode** | ✅ | Works without AWS connection |
-
----
-
-## 🔧 Local Development
+### Installation
 
 ```bash
 # Install dependencies
 npm install
 
-# Start React dev server
+# Create environment file
+cp .env.example .env
+
+# Start development server
 npm run dev
-
-# Start FastAPI backend (in another terminal)
-cd infrastructure/lambda
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
-
-# Open http://localhost:5173
 ```
 
----
-
-## 📦 Deployment Commands
+### Build for Production
 
 ```bash
-# Deploy backend only
-npm run deploy:backend
-
-# Deploy everything (backend + frontend)
-npm run deploy:all
-
-# Build frontend
 npm run build
-
-# Run tests
-npm test
 ```
 
----
+### Deploy to AWS Amplify
 
-## 🔐 Azure AD SSO Setup
+1. Push code to GitHub/GitLab/CodeCommit
+2. Connect repository in AWS Amplify Console
+3. Configure build settings:
+   ```yaml
+   version: 1
+   frontend:
+     phases:
+       preBuild:
+         commands:
+           - npm ci
+       build:
+         commands:
+           - npm run build
+     artifacts:
+       baseDirectory: dist
+       files:
+         - '**/*'
+     cache:
+       paths:
+         - node_modules/**/*
+   ```
+4. Add environment variable:
+   - `VITE_API_URL`: Your Lambda Function URL
 
-See [COMPLETE_DEPLOYMENT_GUIDE.md](COMPLETE_DEPLOYMENT_GUIDE.md#4-azure-ad-sso-configuration) for:
-1. Azure AD App Registration
-2. AWS Cognito User Pool
-3. Identity Provider Federation
+## Configuration
 
----
+### Environment Variables
 
-## 💰 Cost Estimate
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_API_URL` | Backend API URL | Lambda Function URL |
 
-| Service | Free Tier | Est. Monthly Cost |
-|---------|-----------|-------------------|
-| Amplify Hosting | 15 GB/month | $0-5 |
-| Lambda | 1M requests | $0-2 |
-| API Gateway | 1M requests | $0-3 |
-| Cognito | 50K MAU | $0 |
-| **Total** | **Most covered** | **$0-10/month** |
+### API Endpoints
 
----
+The frontend connects to a Lambda backend with 50+ endpoints:
 
-## 🤝 Support
+- `/api/dashboard` - Dashboard overview
+- `/api/ai/*` - AI predictions and chat
+- `/api/security/*` - Security findings
+- `/api/compliance/*` - Compliance data
+- `/api/vulnerabilities/*` - Vulnerability management
+- `/api/guardrails/*` - Policy management
+- `/api/remediation/*` - Threat remediation
+- `/api/accounts/*` - Account lifecycle
+- `/api/finops/*` - Cost management
+- `/api/integrations/*` - External integrations
 
-- **Issues:** Open a GitHub issue
-- **Documentation:** See guides above
-- **AWS Support:** Contact your TAM
+## Tech Stack
 
----
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Vite** - Build tool
+- **Lucide React** - Icons
+- **Axios** - HTTP client
 
-## 📄 License
+## Project Structure
 
-MIT License - See LICENSE file
+```
+src/
+├── App.tsx              # Main app with navigation
+├── main.tsx            # Entry point
+├── index.css           # Global styles
+├── services/
+│   └── api.ts          # API client with all endpoints
+└── pages/
+    ├── DashboardPage.tsx
+    ├── AIPredictionsPage.tsx
+    ├── SecurityPage.tsx
+    ├── CompliancePage.tsx
+    ├── VulnerabilitiesPage.tsx
+    ├── GuardrailsPage.tsx
+    ├── RemediationPage.tsx
+    ├── AccountsPage.tsx
+    ├── FinOpsPage.tsx
+    └── IntegrationsPage.tsx
+```
 
----
+## Screenshots
 
-*Cloud Compliance Canvas v1.0 | December 2025*
+### Dashboard
+Overview of security findings, compliance score, costs, and account status.
+
+### AI Command Center
+Chat with Claude AI, view predictions, and receive proactive alerts.
+
+### FinOps
+Complete cost management with budgets, anomalies, and savings recommendations.
+
+## License
+
+MIT
+
+## Support
+
+For issues and feature requests, please open a GitHub issue.

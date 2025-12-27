@@ -1,20 +1,7 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import type { 
-  ApiResponse, 
-  PaginatedResponse,
-  SecurityHubData,
-  CostOverview,
-  SavingsRecommendation,
-  CostAnomaly,
-  Budget,
-  ComplianceFramework,
-  SecurityFinding,
-  AIPrediction,
-  ChatMessage
-} from '../types';
+import axios, { AxiosInstance } from 'axios';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// API Configuration - supports both Lambda Function URL and API Gateway
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://72lbusissjfm3mm2fjplcst3gm0tgkve.lambda-url.us-east-1.on.aws/api';
 
 // Create Axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -25,7 +12,7 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor for auth tokens
+// Request interceptor
 apiClient.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('accessToken');
   if (token) {
@@ -34,310 +21,325 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for error handling
+// Response interceptor - handle direct responses (not wrapped)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized - redirect to login
-      window.location.href = '/login';
-    }
+    console.error('API Error:', error);
     return Promise.reject(error);
   }
 );
 
 // ============================================================
-// Dashboard API
+// Health & System
 // ============================================================
 
-export async function fetchDashboardData(demoMode: boolean) {
-  if (demoMode) {
-    return null;
-  }
-  
+export async function fetchHealth() {
+  const response = await apiClient.get('/health');
+  return response.data;
+}
+
+export async function fetchConfig() {
+  const response = await apiClient.get('/config');
+  return response.data;
+}
+
+// ============================================================
+// Dashboard
+// ============================================================
+
+export async function fetchDashboard() {
   const response = await apiClient.get('/dashboard');
-  const apiData = response.data;
-  
-  // Generate sample dates for trend data
-  const trendDates = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    trendDates.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  }
-  
-  // Transform API response to match frontend expected structure
-  return {
-    keyMetrics: apiData.key_metrics?.map((m: any) => ({
-      title: m.title,
-      value: m.value,
-      change: m.change,
-      icon: m.icon
-    })) || [],
-    findings: {
-      critical: apiData.findings_by_severity?.CRITICAL || 0,
-      high: apiData.findings_by_severity?.HIGH || 0,
-      medium: apiData.findings_by_severity?.MEDIUM || 0,
-      low: apiData.findings_by_severity?.LOW || 0,
-      informational: apiData.findings_by_severity?.INFORMATIONAL || 0
-    },
-    trendData: {
-      dates: trendDates,
-      critical: trendDates.map(() => Math.floor(Math.random() * 5) + (apiData.findings_by_severity?.CRITICAL || 0)),
-      high: trendDates.map(() => Math.floor(Math.random() * 10) + (apiData.findings_by_severity?.HIGH || 0)),
-      medium: trendDates.map(() => Math.floor(Math.random() * 20) + (apiData.findings_by_severity?.MEDIUM || 0))
-    },
-    complianceFrameworks: apiData.compliance?.frameworks 
-      ? Object.entries(apiData.compliance.frameworks).map(([name, score]) => ({
-          name,
-          score: score as number,
-          status: (score as number) >= 80 ? 'Compliant' : 'Non-Compliant'
-        }))
-      : [
-          { name: 'AWS Config', score: apiData.compliance?.overall_score || 0, status: (apiData.compliance?.overall_score || 0) >= 80 ? 'Compliant' : 'Non-Compliant' }
-        ],
-    recentCriticalIssues: apiData.recent_findings?.filter((f: any) => 
-      f.severity === 'CRITICAL' || f.severity === 'HIGH'
-    ).slice(0, 5).map((f: any) => ({
-      id: f.id,
-      title: f.title,
-      severity: f.severity,
-      resource: f.resource_id,
-      timestamp: f.created_at
-    })) || [],
-    costData: {
-      currentMonth: apiData.cost_summary?.total || 0,
-      forecasted: (apiData.cost_summary?.total || 0) * 1.1,
-      budget: (apiData.cost_summary?.total || 0) * 1.5,
-      byService: apiData.cost_summary?.top_services?.map(([service, cost]: [string, number]) => ({
-        service,
-        cost
-      })) || []
-    },
-    accountSummary: [{
-      name: 'Main Account',
-      findings: (apiData.findings_by_severity?.CRITICAL || 0) + (apiData.findings_by_severity?.HIGH || 0),
-      compliance: apiData.compliance?.overall_score || 0,
-      cost: apiData.cost_summary?.total || 0
-    }]
-  };
-}
-
-// ============================================================
-// Security API
-// ============================================================
-
-export async function fetchSecurityHubFindings(params?: {
-  severity?: string[];
-  status?: string;
-  limit?: number;
-}): Promise<SecurityHubData> {
-  const response = await apiClient.get<ApiResponse<SecurityHubData>>('/security/security-hub', { params });
-  return response.data.data!;
-}
-
-export async function fetchGuardDutyFindings(params?: {
-  severity?: number;
-  limit?: number;
-}): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/security/guardduty', { params });
-  return response.data.data!;
-}
-
-export async function fetchInspectorFindings(params?: {
-  severity?: string;
-  limit?: number;
-}): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/security/inspector', { params });
-  return response.data.data!;
-}
-
-export async function fetchConfigCompliance(): Promise<any> {
-  const response = await apiClient.get<ApiResponse<any>>('/security/config');
   return response.data;
 }
 
 // ============================================================
-// FinOps API
+// Security
 // ============================================================
 
-export async function fetchCostOverview(params?: {
-  startDate?: string;
-  endDate?: string;
-}): Promise<CostOverview> {
-  const response = await apiClient.get<ApiResponse<CostOverview>>('/finops/overview', { params });
-  return response.data.data!;
+export async function fetchSecurityFindings(params?: { severity?: string; status?: string; limit?: number }) {
+  const response = await apiClient.get('/security/findings', { params });
+  return response.data;
 }
 
-export async function fetchCostByService(params?: {
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-}): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/finops/by-service', { params });
-  return response.data.data!;
+export async function fetchSecurityHubFindings(limit: number = 100) {
+  const response = await apiClient.get('/security/security-hub', { params: { limit } });
+  return response.data;
 }
 
-export async function fetchCostByAccount(params?: {
-  startDate?: string;
-  endDate?: string;
-}): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/finops/by-account', { params });
-  return response.data.data!;
+export async function fetchGuardDutyFindings(limit: number = 50) {
+  const response = await apiClient.get('/security/guardduty', { params: { limit } });
+  return response.data;
 }
 
-export async function fetchSavingsRecommendations(): Promise<SavingsRecommendation[]> {
-  const response = await apiClient.get<ApiResponse<SavingsRecommendation[]>>('/finops/recommendations');
-  return response.data.data!;
+export async function fetchConfigRules() {
+  const response = await apiClient.get('/security/config');
+  return response.data;
 }
 
-export async function fetchCostAnomalies(params?: {
-  status?: string;
-  limit?: number;
-}): Promise<CostAnomaly[]> {
-  const response = await apiClient.get<ApiResponse<CostAnomaly[]>>('/finops/anomalies', { params });
-  return response.data.data!;
-}
-
-export async function fetchBudgets(): Promise<Budget[]> {
-  const response = await apiClient.get<ApiResponse<Budget[]>>('/finops/budgets');
-  return response.data.data!;
-}
-
-export async function fetchCostForecast(): Promise<any> {
-  const response = await apiClient.get<ApiResponse<any>>('/finops/forecast');
+export async function fetchInspectorFindings() {
+  const response = await apiClient.get('/security/inspector');
   return response.data;
 }
 
 // ============================================================
-// Compliance API
+// Compliance
 // ============================================================
 
-export async function fetchComplianceFrameworks(): Promise<ComplianceFramework[]> {
-  const response = await apiClient.get<ApiResponse<ComplianceFramework[]>>('/compliance/frameworks');
-  return response.data.data!;
-}
-
-export async function fetchComplianceControls(frameworkId: string): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>(`/compliance/frameworks/${frameworkId}/controls`);
-  return response.data.data!;
-}
-
-export async function fetchComplianceScore(): Promise<number> {
-  const response = await apiClient.get<ApiResponse<{ score: number }>>('/compliance/score');
-  return response.data.data!.score;
-}
-
-// ============================================================
-// Guardrails API
-// ============================================================
-
-export async function fetchSCPPolicies(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/guardrails/scp');
-  return response.data.data!;
-}
-
-export async function fetchOPAPolicies(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/guardrails/opa');
-  return response.data.data!;
-}
-
-export async function fetchKICSResults(): Promise<any> {
-  const response = await apiClient.get<ApiResponse<any>>('/guardrails/kics');
+export async function fetchComplianceScore() {
+  const response = await apiClient.get('/compliance/score');
   return response.data;
 }
 
-export async function deploySCPPolicy(policy: any): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/guardrails/scp/deploy', policy);
+export async function fetchUnifiedCompliance() {
+  const response = await apiClient.get('/compliance/unified');
+  return response.data;
+}
+
+export async function fetchComplianceFrameworks() {
+  const response = await apiClient.get('/compliance/frameworks');
+  return response.data;
+}
+
+export async function fetchComplianceHistory(days: number = 30) {
+  const response = await apiClient.get('/compliance/history', { params: { days } });
   return response.data;
 }
 
 // ============================================================
-// AI & Predictions API
+// Vulnerabilities
 // ============================================================
 
-export async function fetchAIPredictions(type?: string): Promise<AIPrediction[]> {
-  const response = await apiClient.get<ApiResponse<AIPrediction[]>>('/ai/predictions', { params: { type } });
-  return response.data.data!;
-}
-
-export async function generatePrediction(params: {
-  type: string;
-  context?: any;
-}): Promise<AIPrediction> {
-  const response = await apiClient.post<ApiResponse<AIPrediction>>('/ai/predictions/generate', params);
-  return response.data.data!;
-}
-
-export async function sendChatMessage(message: string, context?: any): Promise<ChatMessage> {
-  const response = await apiClient.post<ApiResponse<ChatMessage>>('/ai/chat', { message, context });
-  return response.data.data!;
-}
-
-export async function fetchProactiveAlerts(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/ai/alerts');
-  return response.data.data!;
-}
-
-// ============================================================
-// Account Lifecycle API
-// ============================================================
-
-export async function fetchAWSAccounts(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/accounts');
-  return response.data.data!;
-}
-
-export async function fetchAccountTemplates(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/accounts/templates');
-  return response.data.data!;
-}
-
-export async function provisionAccount(request: any): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/accounts/provision', request);
+export async function fetchVulnerabilitiesOverview() {
+  const response = await apiClient.get('/vulnerabilities/overview');
   return response.data;
 }
 
-export async function decommissionAccount(accountId: string): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>(`/accounts/${accountId}/decommission`);
+export async function fetchInspectorVulnerabilities() {
+  const response = await apiClient.get('/vulnerabilities/inspector');
+  return response.data;
+}
+
+export async function fetchEKSVulnerabilities() {
+  const response = await apiClient.get('/vulnerabilities/eks');
+  return response.data;
+}
+
+export async function fetchContainerVulnerabilities() {
+  const response = await apiClient.get('/vulnerabilities/containers');
   return response.data;
 }
 
 // ============================================================
-// Remediation API
+// Guardrails
 // ============================================================
 
-export async function fetchRemediationPlans(): Promise<any[]> {
-  const response = await apiClient.get<ApiResponse<any[]>>('/remediation/plans');
-  return response.data.data!;
-}
-
-export async function generateRemediationCode(finding: any): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/remediation/generate-code', finding);
+export async function fetchSCPPolicies() {
+  const response = await apiClient.get('/guardrails/scp');
   return response.data;
 }
 
-export async function executeBatchRemediation(plan: any): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/remediation/execute-batch', plan);
+export async function fetchOPAPolicies() {
+  const response = await apiClient.get('/guardrails/opa');
+  return response.data;
+}
+
+export async function fetchKICSResults() {
+  const response = await apiClient.get('/guardrails/kics');
+  return response.data;
+}
+
+export async function fetchGuardrailViolations() {
+  const response = await apiClient.get('/guardrails/violations');
+  return response.data;
+}
+
+export async function deployGuardrail(request: {
+  policy_type: string;
+  policy_id: string;
+  target_accounts: string[];
+  dry_run: boolean;
+}) {
+  const response = await apiClient.post('/guardrails/deploy', request);
   return response.data;
 }
 
 // ============================================================
-// Auth API
+// Remediation
 // ============================================================
 
-export async function validateToken(token: string): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/auth/validate', { token });
+export async function fetchThreats() {
+  const response = await apiClient.get('/remediation/threats');
   return response.data;
 }
 
-export async function refreshToken(): Promise<any> {
-  const response = await apiClient.post<ApiResponse<any>>('/auth/refresh');
+export async function generateRemediationCode(request: {
+  finding_id: string;
+  finding_type: string;
+  resource_type: string;
+  resource_id: string;
+  language: string;
+  description?: string;
+}) {
+  const response = await apiClient.post('/remediation/generate-code', request);
+  return response.data;
+}
+
+export async function executeBatchRemediation(request: {
+  finding_ids: string[];
+  action: string;
+  approval_required: boolean;
+  notify: boolean;
+}) {
+  const response = await apiClient.post('/remediation/batch', request);
+  return response.data;
+}
+
+export async function fetchRemediationHistory(limit: number = 50) {
+  const response = await apiClient.get('/remediation/history', { params: { limit } });
+  return response.data;
+}
+
+export async function rollbackRemediation(remediationId: string) {
+  const response = await apiClient.post('/remediation/rollback', { remediation_id: remediationId });
   return response.data;
 }
 
 // ============================================================
-// Export default client for custom requests
+// Accounts
+// ============================================================
+
+export async function fetchAccounts(params?: { environment?: string; status?: string; limit?: number }) {
+  const response = await apiClient.get('/accounts', { params });
+  return response.data;
+}
+
+export async function fetchAccountTemplates() {
+  const response = await apiClient.get('/accounts/templates');
+  return response.data;
+}
+
+export async function fetchAccountDetails(accountId: string) {
+  const response = await apiClient.get(`/accounts/${accountId}`);
+  return response.data;
+}
+
+export async function provisionAccount(request: {
+  account_name: string;
+  email: string;
+  template: string;
+  environment: string;
+  cost_center?: string;
+  owner?: string;
+}) {
+  const response = await apiClient.post('/accounts/provision', request);
+  return response.data;
+}
+
+export async function decommissionAccount(accountId: string) {
+  const response = await apiClient.post('/accounts/decommission', { account_id: accountId });
+  return response.data;
+}
+
+// ============================================================
+// FinOps
+// ============================================================
+
+export async function fetchFinOpsOverview() {
+  const response = await apiClient.get('/finops/overview');
+  return response.data;
+}
+
+export async function fetchCostByService() {
+  const response = await apiClient.get('/finops/by-service');
+  return response.data;
+}
+
+export async function fetchCostByAccount() {
+  const response = await apiClient.get('/finops/by-account');
+  return response.data;
+}
+
+export async function fetchBudgets() {
+  const response = await apiClient.get('/finops/budgets');
+  return response.data;
+}
+
+export async function fetchCostAnomalies() {
+  const response = await apiClient.get('/finops/anomalies');
+  return response.data;
+}
+
+export async function fetchSavingsRecommendations() {
+  const response = await apiClient.get('/finops/savings');
+  return response.data;
+}
+
+export async function fetchUnitEconomics() {
+  const response = await apiClient.get('/finops/unit-economics');
+  return response.data;
+}
+
+export async function fetchSustainability() {
+  const response = await apiClient.get('/finops/sustainability');
+  return response.data;
+}
+
+// ============================================================
+// AI
+// ============================================================
+
+export async function sendAIChat(messages: { role: string; content: string }[], context?: string) {
+  const response = await apiClient.post('/ai/chat', { messages, context });
+  return response.data;
+}
+
+export async function fetchExecutiveDashboard() {
+  const response = await apiClient.get('/ai/executive-dashboard');
+  return response.data;
+}
+
+export async function fetchAIPrediction(type: 'cost' | 'security' | 'compliance' | 'operations') {
+  const response = await apiClient.get(`/ai/predictions/${type}`);
+  return response.data;
+}
+
+export async function fetchProactiveAlerts() {
+  const response = await apiClient.get('/ai/alerts');
+  return response.data;
+}
+
+// ============================================================
+// Integrations
+// ============================================================
+
+export async function createJiraTicket(payload: any) {
+  const response = await apiClient.post('/integrations/jira', { type: 'jira', payload });
+  return response.data;
+}
+
+export async function sendSlackNotification(payload: any) {
+  const response = await apiClient.post('/integrations/slack', { type: 'slack', payload });
+  return response.data;
+}
+
+export async function createServiceNowIncident(payload: any) {
+  const response = await apiClient.post('/integrations/servicenow', { type: 'servicenow', payload });
+  return response.data;
+}
+
+export async function triggerPagerDuty(payload: any) {
+  const response = await apiClient.post('/integrations/pagerduty', { type: 'pagerduty', payload });
+  return response.data;
+}
+
+export async function fetchGitHubSecurity() {
+  const response = await apiClient.get('/integrations/github');
+  return response.data;
+}
+
+// ============================================================
+// Export
 // ============================================================
 
 export default apiClient;

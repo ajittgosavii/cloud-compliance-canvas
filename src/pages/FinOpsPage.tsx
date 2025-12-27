@@ -1,526 +1,471 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import Plot from 'react-plotly.js';
+import React, { useState, useEffect } from 'react';
 import { 
-  DollarSign, 
-  TrendingDown, 
-  TrendingUp, 
-  AlertTriangle,
-  Lightbulb,
-  PieChart,
-  BarChart3,
-  Calendar,
-  Download,
-  RefreshCw,
-  Brain
+  DollarSign, RefreshCw, TrendingUp, TrendingDown, AlertTriangle,
+  PiggyBank, Leaf, BarChart3, Target, Zap, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
-import { useAppStore } from '../stores/appStore';
-import { MetricsGrid } from '../components/common/MetricCard';
-import type { DashboardMetric } from '../types';
+import * as api from '../services/api';
 
 export default function FinOpsPage() {
-  const { demoMode } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
+  const [overview, setOverview] = useState<any>(null);
+  const [services, setServices] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
+  const [anomalies, setAnomalies] = useState<any[]>([]);
+  const [savings, setSavings] = useState<any[]>([]);
+  const [unitEconomics, setUnitEconomics] = useState<any>(null);
+  const [sustainability, setSustainability] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Sub-tabs matching Streamlit FinOps tabs
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [ov, svc, acct, bud, anom, sav, unit, sust] = await Promise.all([
+        api.fetchFinOpsOverview(),
+        api.fetchCostByService(),
+        api.fetchCostByAccount(),
+        api.fetchBudgets(),
+        api.fetchCostAnomalies(),
+        api.fetchSavingsRecommendations(),
+        api.fetchUnitEconomics(),
+        api.fetchSustainability()
+      ]);
+      setOverview(ov);
+      setServices(svc.services || []);
+      setAccounts(acct.accounts || []);
+      setBudgets(bud.budgets || []);
+      setAnomalies(anom.anomalies || []);
+      setSavings(sav.recommendations || []);
+      setUnitEconomics(unit);
+      setSustainability(sust);
+    } catch (error) {
+      console.error('Failed to load FinOps data:', error);
+    }
+    setLoading(false);
+  };
+
   const tabs = [
-    { id: 'overview', label: '📊 Cost Overview', icon: PieChart },
-    { id: 'services', label: '🔧 By Service', icon: BarChart3 },
-    { id: 'accounts', label: '👥 By Account', icon: DollarSign },
-    { id: 'anomalies', label: '⚠️ Anomalies', icon: AlertTriangle },
-    { id: 'savings', label: '💡 Savings', icon: Lightbulb },
-    { id: 'budgets', label: '📅 Budgets', icon: Calendar },
-    { id: 'ai-analysis', label: '🧠 AI Analysis', icon: Brain },
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'services', label: 'By Service', icon: DollarSign },
+    { id: 'accounts', label: 'By Account', icon: DollarSign },
+    { id: 'budgets', label: 'Budgets', icon: Target },
+    { id: 'anomalies', label: 'Anomalies', icon: AlertTriangle },
+    { id: 'savings', label: 'Savings', icon: PiggyBank },
+    { id: 'unit', label: 'Unit Economics', icon: Zap },
+    { id: 'sustainability', label: 'Sustainability', icon: Leaf }
   ];
 
-  // Demo data
-  const costData = getDemoCostData();
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  const getChangeColor = (change: number) => {
+    return change > 0 ? 'text-red-400' : 'text-green-400';
+  };
+
+  const getBudgetStatus = (utilized: number) => {
+    if (utilized >= 100) return 'bg-red-400/10 text-red-400 border-red-400/30';
+    if (utilized >= 80) return 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30';
+    return 'bg-green-400/10 text-green-400 border-green-400/30';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">💰 FinOps Dashboard</h1>
-          <p className="text-gray-500">AWS Cost Management & Optimization Intelligence</p>
-        </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-            <Download size={16} />
-            Export Report
+          <DollarSign className="w-8 h-8 text-emerald-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">FinOps</h1>
+            <p className="text-gray-400">Cloud financial management</p>
+          </div>
+        </div>
+        <button
+          onClick={loadData}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      {overview && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <p className="text-gray-400 text-sm">Current Month</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(overview.current_month)}</p>
+            <div className={`flex items-center gap-1 mt-1 text-sm ${getChangeColor(overview.month_over_month_change)}`}>
+              {overview.month_over_month_change > 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+              {Math.abs(overview.month_over_month_change)}% vs last month
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <p className="text-gray-400 text-sm">Forecasted Month</p>
+            <p className="text-3xl font-bold text-blue-400">{formatCurrency(overview.forecasted_month)}</p>
+          </div>
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <p className="text-gray-400 text-sm">YTD Spend</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(overview.year_to_date)}</p>
+          </div>
+          <div className="bg-gray-800 rounded-xl p-4 border border-emerald-500/30">
+            <p className="text-gray-400 text-sm">Potential Savings</p>
+            <p className="text-3xl font-bold text-emerald-400">{formatCurrency(overview.potential_savings)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+              activeTab === tab.id
+                ? 'bg-emerald-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[#FF9900] text-white rounded-lg hover:bg-[#E88B00]">
-            <RefreshCw size={16} />
-            Refresh Data
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* Key Metrics */}
-      <MetricsGrid metrics={costData.keyMetrics} columns={5} />
+      {/* Overview Tab */}
+      {activeTab === 'overview' && overview && (
+        <div className="space-y-6">
+          {/* Trend Chart Placeholder */}
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4">Cost Trend (Last 6 Months)</h3>
+            <div className="h-48 flex items-end gap-2">
+              {overview.trend?.map((month: any, index: number) => (
+                <div key={index} className="flex-1 flex flex-col items-center">
+                  <div 
+                    className="w-full bg-emerald-500 rounded-t"
+                    style={{ height: `${(month.cost / Math.max(...overview.trend.map((m: any) => m.cost))) * 100}%` }}
+                  ></div>
+                  <p className="text-gray-400 text-xs mt-2">{month.month}</p>
+                  <p className="text-white text-xs">{formatCurrency(month.cost)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
-      {/* Sub-navigation Tabs */}
-      <div className="bg-[#232F3E] rounded-xl p-1 flex gap-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-[#FF9900] text-white'
-                  : 'text-gray-300 hover:bg-[#37475A]'
-              }`}
-            >
-              <Icon size={16} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tab Content */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {activeTab === 'overview' && <CostOverviewTab data={costData} />}
-        {activeTab === 'services' && <CostByServiceTab data={costData} />}
-        {activeTab === 'accounts' && <CostByAccountTab data={costData} />}
-        {activeTab === 'anomalies' && <CostAnomaliesTab data={costData} />}
-        {activeTab === 'savings' && <SavingsRecommendationsTab data={costData} />}
-        {activeTab === 'budgets' && <BudgetTrackingTab data={costData} />}
-        {activeTab === 'ai-analysis' && <AIAnalysisTab data={costData} />}
-      </div>
-    </div>
-  );
-}
-
-// Cost Overview Tab
-function CostOverviewTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">📊 Cost Overview</h3>
-      
-      <div className="grid grid-cols-2 gap-6">
-        {/* Daily Spend Trend */}
-        <div>
-          <h4 className="text-md font-medium mb-4">Daily Spend (Last 30 Days)</h4>
-          <Plot
-            data={[
-              {
-                x: data.dailyCosts.map((d: any) => d.date),
-                y: data.dailyCosts.map((d: any) => d.amount),
-                type: 'scatter',
-                mode: 'lines+markers',
-                fill: 'tozeroy',
-                line: { color: '#FF9900', width: 2 },
-                marker: { size: 4 },
-              },
-            ]}
-            layout={{
-              autosize: true,
-              margin: { t: 20, r: 20, b: 40, l: 60 },
-              xaxis: { tickformat: '%b %d' },
-              yaxis: { title: { text: 'Cost (\$)' }, tickformat: ',.0f' },
-            }}
-            useResizeHandler
-            style={{ width: '100%', height: 300 }}
-            config={{ responsive: true, displayModeBar: false }}
-          />
-        </div>
-
-        {/* Cost by Service Pie */}
-        <div>
-          <h4 className="text-md font-medium mb-4">Cost Distribution by Service</h4>
-          <Plot
-            data={[
-              {
-                values: data.serviceBreakdown.map((s: any) => s.cost),
-                labels: data.serviceBreakdown.map((s: any) => s.service),
-                type: 'pie',
-                hole: 0.4,
-                marker: {
-                  colors: ['#FF9900', '#146EB4', '#232F3E', '#00A8E1', '#5B9BD5', '#7C3AED'],
-                },
-                textinfo: 'label+percent',
-              },
-            ]}
-            layout={{
-              autosize: true,
-              margin: { t: 20, r: 20, b: 20, l: 20 },
-              showlegend: true,
-              legend: { orientation: 'v', x: 1.1, y: 0.5 },
-            }}
-            useResizeHandler
-            style={{ width: '100%', height: 300 }}
-            config={{ responsive: true, displayModeBar: false }}
-          />
-        </div>
-      </div>
-
-      {/* Month over Month Comparison */}
-      <div>
-        <h4 className="text-md font-medium mb-4">Month-over-Month Comparison</h4>
-        <Plot
-          data={[
-            {
-              x: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-              y: data.monthlyTrend.previous,
-              name: '2024',
-              type: 'bar',
-              marker: { color: '#94A3B8' },
-            },
-            {
-              x: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-              y: data.monthlyTrend.current,
-              name: '2025',
-              type: 'bar',
-              marker: { color: '#FF9900' },
-            },
-          ]}
-          layout={{
-            autosize: true,
-            margin: { t: 40, r: 20, b: 40, l: 60 },
-            barmode: 'group',
-            legend: { orientation: 'h', y: 1.15 },
-            yaxis: { title: { text: 'Cost (\$)' }, tickformat: ',.0f' },
-          }}
-          useResizeHandler
-          style={{ width: '100%', height: 300 }}
-          config={{ responsive: true, displayModeBar: false }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// Cost by Service Tab
-function CostByServiceTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">🔧 Cost by AWS Service</h3>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Service</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">MTD Cost</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">% of Total</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">Change</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Trend</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {data.serviceBreakdown.map((service: any, index: number) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{service.service}</td>
-                <td className="px-4 py-3 text-right">${service.cost.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{service.percentage}%</td>
-                <td className={`px-4 py-3 text-right ${service.change > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {service.change > 0 ? '+' : ''}{service.change}%
-                </td>
-                <td className="px-4 py-3">
-                  <div className="w-24 h-8">
-                    <Plot
-                      data={[{
-                        y: service.trend,
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: service.change > 0 ? '#DC2626' : '#16A34A', width: 2 },
-                      }]}
-                      layout={{
-                        autosize: true,
-                        margin: { t: 0, r: 0, b: 0, l: 0 },
-                        xaxis: { visible: false },
-                        yaxis: { visible: false },
-                      }}
-                      style={{ width: '100%', height: '100%' }}
-                      config={{ displayModeBar: false, staticPlot: true }}
-                    />
+          {/* Top Services */}
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4">Top Services by Spend</h3>
+            <div className="space-y-3">
+              {services.slice(0, 5).map((service) => (
+                <div key={service.service} className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-white">{service.service}</span>
+                      <span className="text-gray-400">{formatCurrency(service.cost)}</span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div 
+                        className="bg-emerald-500 h-2 rounded-full"
+                        style={{ width: `${(service.cost / services[0].cost) * 100}%` }}
+                      ></div>
+                    </div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Cost by Account Tab
-function CostByAccountTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">👥 Cost by AWS Account</h3>
-      
-      <div className="grid grid-cols-2 gap-6">
-        {data.accountCosts.map((account: any, index: number) => (
-          <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold">{account.name}</span>
-              <span className={`px-2 py-0.5 rounded text-xs ${
-                account.environment === 'production' ? 'bg-red-100 text-red-700' :
-                account.environment === 'staging' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-green-100 text-green-700'
-              }`}>
-                {account.environment}
-              </span>
-            </div>
-            <p className="text-sm text-gray-500 mb-2">{account.accountId}</p>
-            <div className="flex justify-between items-end">
-              <span className="text-2xl font-bold">${account.cost.toLocaleString()}</span>
-              <span className={`text-sm ${account.change > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {account.change > 0 ? '↑' : '↓'} {Math.abs(account.change)}%
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Cost Anomalies Tab
-function CostAnomaliesTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">⚠️ Cost Anomalies</h3>
-      
-      <div className="space-y-4">
-        {data.anomalies.map((anomaly: any, index: number) => (
-          <div key={index} className={`p-4 rounded-lg border-l-4 ${
-            anomaly.impact > 1000 ? 'border-red-500 bg-red-50' :
-            anomaly.impact > 500 ? 'border-yellow-500 bg-yellow-50' :
-            'border-blue-500 bg-blue-50'
-          }`}>
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-semibold">{anomaly.service}</h4>
-                <p className="text-sm text-gray-600">{anomaly.account} • {anomaly.region}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-red-600">+${anomaly.impact.toLocaleString()}</p>
-                <p className="text-sm text-gray-500">{anomaly.impactPercentage}% above expected</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-gray-700">{anomaly.rootCause}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Savings Recommendations Tab
-function SavingsRecommendationsTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">💡 Savings Recommendations</h3>
-      
-      <div className="grid gap-4">
-        {data.savings.map((rec: any, index: number) => (
-          <div key={index} className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    rec.type === 'SAVINGS_PLAN' ? 'bg-green-100 text-green-700' :
-                    rec.type === 'RESERVED_INSTANCE' ? 'bg-blue-100 text-blue-700' :
-                    rec.type === 'RIGHTSIZING' ? 'bg-purple-100 text-purple-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {rec.type.replace('_', ' ')}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${
-                    rec.impact === 'HIGH' ? 'bg-red-100 text-red-700' :
-                    rec.impact === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {rec.impact} Impact
+                  <span className={`text-sm ${getChangeColor(service.change)}`}>
+                    {service.change > 0 ? '+' : ''}{service.change}%
                   </span>
                 </div>
-                <h4 className="font-semibold">{rec.title}</h4>
-                <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
-              </div>
-              <div className="text-right ml-4">
-                <p className="text-2xl font-bold text-green-600">${rec.monthlySavings.toLocaleString()}/mo</p>
-                <p className="text-sm text-gray-500">${rec.annualSavings.toLocaleString()}/yr</p>
-              </div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button className="px-3 py-1.5 bg-[#FF9900] text-white rounded-lg text-sm hover:bg-[#E88B00]">
-                Apply Now
-              </button>
-              <button className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
-                View Details
-              </button>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+        </div>
+      )}
 
-// Budget Tracking Tab
-function BudgetTrackingTab({ data }: { data: any }) {
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">📅 Budget Tracking</h3>
-      
-      <div className="grid gap-4">
-        {data.budgets.map((budget: any, index: number) => (
-          <div key={index} className="p-4 bg-white rounded-lg border border-gray-200">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h4 className="font-semibold">{budget.name}</h4>
-                <p className="text-sm text-gray-500">{budget.period}</p>
+      {/* Services Tab */}
+      {activeTab === 'services' && (
+        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-700/50">
+              <tr>
+                <th className="text-left p-4 text-gray-400 font-medium">Service</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Cost</th>
+                <th className="text-right p-4 text-gray-400 font-medium">% of Total</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Change</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((service) => (
+                <tr key={service.service} className="border-t border-gray-700">
+                  <td className="p-4 text-white">{service.service}</td>
+                  <td className="p-4 text-right text-white">{formatCurrency(service.cost)}</td>
+                  <td className="p-4 text-right text-gray-400">{service.percentage}%</td>
+                  <td className={`p-4 text-right ${getChangeColor(service.change)}`}>
+                    {service.change > 0 ? '+' : ''}{service.change}%
+                  </td>
+                  <td className="p-4 text-right">
+                    {service.change > 0 ? (
+                      <TrendingUp className="w-4 h-4 text-red-400 inline" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-green-400 inline" />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Accounts Tab */}
+      {activeTab === 'accounts' && (
+        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-700/50">
+              <tr>
+                <th className="text-left p-4 text-gray-400 font-medium">Account</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Cost</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Budget</th>
+                <th className="text-right p-4 text-gray-400 font-medium">Utilization</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((account) => (
+                <tr key={account.account_id} className="border-t border-gray-700">
+                  <td className="p-4">
+                    <p className="text-white">{account.account_name}</p>
+                    <p className="text-gray-500 text-sm">{account.account_id}</p>
+                  </td>
+                  <td className="p-4 text-right text-white">{formatCurrency(account.cost)}</td>
+                  <td className="p-4 text-right text-gray-400">{formatCurrency(account.budget)}</td>
+                  <td className="p-4 text-right">
+                    <span className={`px-2 py-1 rounded text-sm border ${getBudgetStatus(account.budget_utilization)}`}>
+                      {account.budget_utilization}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Budgets Tab */}
+      {activeTab === 'budgets' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {budgets.map((budget) => (
+            <div key={budget.name} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-white font-semibold">{budget.name}</h4>
+                <span className={`px-2 py-1 rounded text-xs border ${getBudgetStatus(budget.utilized_percent)}`}>
+                  {budget.utilized_percent}% utilized
+                </span>
               </div>
-              <span className={`px-2 py-1 rounded text-sm font-medium ${
-                budget.percentUsed > 90 ? 'bg-red-100 text-red-700' :
-                budget.percentUsed > 75 ? 'bg-yellow-100 text-yellow-700' :
-                'bg-green-100 text-green-700'
-              }`}>
-                {budget.percentUsed}% Used
-              </span>
-            </div>
-            
-            <div className="flex justify-between text-sm mb-2">
-              <span>Spent: ${budget.spent.toLocaleString()}</span>
-              <span>Budget: ${budget.amount.toLocaleString()}</span>
-            </div>
-            
-            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full ${
-                  budget.percentUsed > 90 ? 'bg-red-500' :
-                  budget.percentUsed > 75 ? 'bg-yellow-500' :
-                  'bg-green-500'
-                }`}
-                style={{ width: `${Math.min(budget.percentUsed, 100)}%` }}
-              />
-            </div>
-            
-            <div className="mt-2 text-sm text-gray-500">
-              Forecasted: ${budget.forecasted.toLocaleString()} ({budget.forecastPercent}% of budget)
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Spent</span>
+                  <span className="text-white">{formatCurrency(budget.actual)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Budget</span>
+                  <span className="text-white">{formatCurrency(budget.limit)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Forecasted</span>
+                  <span className="text-blue-400">{formatCurrency(budget.forecasted)}</span>
+                </div>
+              </div>
 
-// AI Analysis Tab
-function AIAnalysisTab({ data }: { data: any }) {
-  const [query, setQuery] = useState('');
-  
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold">🧠 AI Cost Analysis (Claude)</h3>
-      
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
-        <div className="flex items-center gap-3 mb-4">
-          <Brain className="text-purple-600" size={24} />
-          <span className="font-semibold text-purple-900">Ask Claude about your AWS costs</span>
-        </div>
-        
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., What are my top cost optimization opportunities?"
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
-          <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-            Analyze
-          </button>
-        </div>
-        
-        <div className="mt-4 flex gap-2 flex-wrap">
-          {['Top savings opportunities', 'Cost anomaly analysis', 'Reserved Instance recommendations', 'Budget forecast'].map((suggestion) => (
-            <button
-              key={suggestion}
-              onClick={() => setQuery(suggestion)}
-              className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm hover:bg-gray-50"
-            >
-              {suggestion}
-            </button>
+              <div className="w-full bg-gray-700 rounded-full h-3">
+                <div 
+                  className={`h-3 rounded-full ${
+                    budget.utilized_percent >= 100 ? 'bg-red-500' :
+                    budget.utilized_percent >= 80 ? 'bg-yellow-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min(budget.utilized_percent, 100)}%` }}
+                ></div>
+              </div>
+
+              {budget.alerts?.length > 0 && (
+                <div className="mt-4 space-y-1">
+                  {budget.alerts.map((alert: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <AlertTriangle className={`w-4 h-4 ${
+                        alert.triggered ? 'text-red-400' : 'text-gray-500'
+                      }`} />
+                      <span className={alert.triggered ? 'text-red-400' : 'text-gray-500'}>
+                        Alert at {alert.threshold}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
-      </div>
-      
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h4 className="font-semibold mb-4">📊 AI-Generated Insights</h4>
-        <div className="space-y-4 text-gray-700">
-          <p>Based on your AWS cost data, here are key insights:</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Top Opportunity:</strong> Purchasing a 1-year Compute Savings Plan could save approximately $12,500/month (15% of EC2 spend).</li>
-            <li><strong>Anomaly Detected:</strong> RDS costs increased 47% this month due to new Aurora cluster provisioning.</li>
-            <li><strong>Rightsizing:</strong> 23 EC2 instances are over-provisioned and can be downsized for $4,200/month savings.</li>
-            <li><strong>Idle Resources:</strong> 5 load balancers and 12 EBS volumes appear unused.</li>
-          </ul>
+      )}
+
+      {/* Anomalies Tab */}
+      {activeTab === 'anomalies' && (
+        <div className="space-y-4">
+          {anomalies.length === 0 ? (
+            <div className="bg-gray-800 rounded-xl p-8 text-center border border-gray-700">
+              <AlertTriangle className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-400">No cost anomalies detected</p>
+            </div>
+          ) : (
+            anomalies.map((anomaly) => (
+              <div key={anomaly.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                      <span className="text-white font-semibold">{anomaly.service}</span>
+                    </div>
+                    <p className="text-gray-400">{anomaly.root_cause}</p>
+                    <div className="flex items-center gap-4 mt-3 text-sm">
+                      <span className="text-gray-500">Account: {anomaly.account_id}</span>
+                      <span className="text-gray-500">Region: {anomaly.region}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-red-400 text-2xl font-bold">+{formatCurrency(anomaly.impact)}</p>
+                    <p className="text-gray-500 text-sm">
+                      {new Date(anomaly.detected_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Savings Tab */}
+      {activeTab === 'savings' && (
+        <div className="space-y-4">
+          {savings.map((rec) => (
+            <div key={rec.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      rec.type === 'COMMITMENT' ? 'bg-blue-400/10 text-blue-400' :
+                      rec.type === 'OPTIMIZATION' ? 'bg-purple-400/10 text-purple-400' :
+                      'bg-yellow-400/10 text-yellow-400'
+                    }`}>
+                      {rec.type}
+                    </span>
+                    <span className="text-white font-semibold">{rec.title}</span>
+                  </div>
+                  <p className="text-gray-400">{rec.description}</p>
+                  <div className="flex items-center gap-4 mt-3 text-sm">
+                    <span className="text-gray-500">Effort: {rec.effort}</span>
+                    <span className="text-gray-500">Confidence: {rec.confidence}%</span>
+                    <span className="text-gray-500">{rec.resource_count} resources</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-emerald-400 text-2xl font-bold">{formatCurrency(rec.estimated_monthly_savings)}/mo</p>
+                  <p className="text-gray-500 text-sm">{formatCurrency(rec.estimated_annual_savings)}/yr</p>
+                </div>
+              </div>
+              <button className="mt-4 px-4 py-2 bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 w-full">
+                Implement Recommendation
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Unit Economics Tab */}
+      {activeTab === 'unit' && unitEconomics && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {unitEconomics.metrics?.map((metric: any) => (
+              <div key={metric.name} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <p className="text-gray-400 text-sm">{metric.name}</p>
+                <p className="text-3xl font-bold text-white mt-2">{metric.value}</p>
+                <div className={`flex items-center gap-1 mt-2 text-sm ${getChangeColor(-metric.change)}`}>
+                  {metric.change < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                  {Math.abs(metric.change)}% vs last month
+                </div>
+                <p className="text-gray-500 text-sm mt-1">Target: {metric.target}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sustainability Tab */}
+      {activeTab === 'sustainability' && sustainability && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Leaf className="w-5 h-5 text-green-400" />
+                <p className="text-gray-400">Carbon Footprint</p>
+              </div>
+              <p className="text-3xl font-bold text-white">{sustainability.carbon_footprint_tons} tons</p>
+              <p className="text-gray-500 text-sm mt-1">CO2 equivalent</p>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <p className="text-gray-400 text-sm">Renewable Energy</p>
+              <p className="text-3xl font-bold text-green-400">{sustainability.renewable_energy_percent}%</p>
+              <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-green-500 h-2 rounded-full"
+                  style={{ width: `${sustainability.renewable_energy_percent}%` }}
+                ></div>
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <p className="text-gray-400 text-sm">Efficiency Score</p>
+              <p className="text-3xl font-bold text-blue-400">{sustainability.efficiency_score}</p>
+              <p className="text-gray-500 text-sm mt-1">out of 100</p>
+            </div>
+          </div>
+
+          {/* Region Breakdown */}
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4">Carbon by Region</h3>
+            <div className="space-y-3">
+              {sustainability.by_region?.map((region: any) => (
+                <div key={region.region} className="flex items-center gap-4">
+                  <span className="text-gray-400 w-24">{region.region}</span>
+                  <div className="flex-1">
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full"
+                        style={{ width: `${(region.tons / sustainability.carbon_footprint_tons) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <span className="text-white w-20 text-right">{region.tons} tons</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-// Demo Data Generator
-function getDemoCostData() {
-  const dates = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    return d.toISOString().split('T')[0];
-  });
-
-  return {
-    keyMetrics: [
-      { id: '1', title: 'MTD Cost', value: '$127,432', change: 8.5, changeDirection: 'up' as const, color: '#FF9900' },
-      { id: '2', title: 'Forecasted', value: '$185,000', change: 12, changeDirection: 'up' as const, color: '#2563EB' },
-      { id: '3', title: 'Budget', value: '$200,000', unit: 'remaining: $72.5K', color: '#16A34A' },
-      { id: '4', title: 'Savings Identified', value: '$24,500', changeLabel: '/month potential', color: '#7C3AED' },
-      { id: '5', title: 'Anomalies', value: '3', change: -2, changeDirection: 'down' as const, color: '#DC2626' },
-    ] as DashboardMetric[],
-    dailyCosts: dates.map((date) => ({
-      date,
-      amount: 4000 + Math.random() * 2000,
-    })),
-    serviceBreakdown: [
-      { service: 'Amazon EC2', cost: 45000, percentage: 35, change: 5, trend: [40, 42, 44, 43, 45, 45] },
-      { service: 'Amazon RDS', cost: 28000, percentage: 22, change: 12, trend: [22, 24, 25, 26, 27, 28] },
-      { service: 'Amazon S3', cost: 18000, percentage: 14, change: -3, trend: [20, 19, 19, 18, 18, 18] },
-      { service: 'AWS Lambda', cost: 12000, percentage: 9, change: 8, trend: [10, 10, 11, 11, 12, 12] },
-      { service: 'Amazon EKS', cost: 15000, percentage: 12, change: 15, trend: [11, 12, 13, 14, 14, 15] },
-      { service: 'Other', cost: 9432, percentage: 8, change: 2, trend: [9, 9, 9, 9, 9, 9] },
-    ],
-    monthlyTrend: {
-      previous: [95, 98, 102, 105, 108, 112, 115, 118, 120, 122, 125, 127],
-      current: [105, 108, 112, 118, 122, 127, 0, 0, 0, 0, 0, 0],
-    },
-    accountCosts: [
-      { accountId: '123456789012', name: 'Production-Retail', environment: 'production', cost: 65000, change: 8 },
-      { accountId: '123456789013', name: 'Dev-Healthcare', environment: 'development', cost: 28000, change: -5 },
-      { accountId: '123456789014', name: 'Staging-Financial', environment: 'staging', cost: 22000, change: 12 },
-      { accountId: '123456789015', name: 'Sandbox-Research', environment: 'development', cost: 12432, change: 3 },
-    ],
-    anomalies: [
-      { service: 'Amazon RDS', account: 'Production-Retail', region: 'us-east-1', impact: 2500, impactPercentage: 47, rootCause: 'New Aurora cluster provisioned without cost approval' },
-      { service: 'AWS Lambda', account: 'Dev-Healthcare', region: 'us-west-2', impact: 800, impactPercentage: 32, rootCause: 'Recursive function invocations detected' },
-      { service: 'Amazon EC2', account: 'Sandbox-Research', region: 'eu-west-1', impact: 450, impactPercentage: 18, rootCause: 'GPU instances left running over weekend' },
-    ],
-    savings: [
-      { type: 'SAVINGS_PLAN', title: 'Compute Savings Plan', description: '1-year commitment for EC2, Lambda, and Fargate', monthlySavings: 12500, annualSavings: 150000, impact: 'HIGH' },
-      { type: 'RESERVED_INSTANCE', title: 'RDS Reserved Instances', description: 'Reserve r5.2xlarge instances for production databases', monthlySavings: 5200, annualSavings: 62400, impact: 'MEDIUM' },
-      { type: 'RIGHTSIZING', title: 'EC2 Rightsizing', description: '23 instances identified as over-provisioned', monthlySavings: 4200, annualSavings: 50400, impact: 'MEDIUM' },
-      { type: 'IDLE_RESOURCE', title: 'Idle Resource Cleanup', description: '5 ELBs and 12 EBS volumes with no traffic', monthlySavings: 2600, annualSavings: 31200, impact: 'LOW' },
-    ],
-    budgets: [
-      { name: 'Overall AWS Budget', period: 'Monthly', amount: 200000, spent: 127432, forecasted: 185000, percentUsed: 64, forecastPercent: 92 },
-      { name: 'Production Account', period: 'Monthly', amount: 80000, spent: 65000, forecasted: 95000, percentUsed: 81, forecastPercent: 119 },
-      { name: 'AI/ML Workloads', period: 'Monthly', amount: 25000, spent: 18500, forecasted: 28000, percentUsed: 74, forecastPercent: 112 },
-    ],
-  };
 }
