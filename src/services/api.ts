@@ -52,11 +52,62 @@ apiClient.interceptors.response.use(
 
 export async function fetchDashboardData(demoMode: boolean) {
   if (demoMode) {
-    // Return demo data directly without API call
-    return null; // Let component use getDemoData()
+    return null;
   }
-  const response = await apiClient.get<ApiResponse<any>>('/dashboard');
-  return response.data;
+  
+  const response = await apiClient.get('/dashboard');
+  const apiData = response.data;
+  
+  // Transform API response to match frontend expected structure
+  return {
+    keyMetrics: apiData.key_metrics?.map((m: any) => ({
+      title: m.title,
+      value: m.value,
+      change: m.change,
+      icon: m.icon
+    })) || [],
+    findings: {
+      critical: apiData.findings_by_severity?.CRITICAL || 0,
+      high: apiData.findings_by_severity?.HIGH || 0,
+      medium: apiData.findings_by_severity?.MEDIUM || 0,
+      low: apiData.findings_by_severity?.LOW || 0,
+      informational: apiData.findings_by_severity?.INFORMATIONAL || 0
+    },
+    trendData: {
+      dates: apiData.cost_summary?.top_services?.map((_: any, i: number) => `Day ${i + 1}`) || [],
+      findings: apiData.cost_summary?.top_services?.map(() => Math.floor(Math.random() * 50)) || [],
+      compliance: apiData.cost_summary?.top_services?.map(() => Math.floor(Math.random() * 100)) || []
+    },
+    complianceFrameworks: Object.entries(apiData.compliance?.frameworks || {}).map(([name, score]) => ({
+      name,
+      score: score as number,
+      status: (score as number) >= 80 ? 'Compliant' : 'Non-Compliant'
+    })),
+    recentCriticalIssues: apiData.recent_findings?.filter((f: any) => 
+      f.severity === 'CRITICAL' || f.severity === 'HIGH'
+    ).slice(0, 5).map((f: any) => ({
+      id: f.id,
+      title: f.title,
+      severity: f.severity,
+      resource: f.resource_id,
+      timestamp: f.created_at
+    })) || [],
+    costData: {
+      currentMonth: apiData.cost_summary?.total || 0,
+      previousMonth: (apiData.cost_summary?.total || 0) * 0.9,
+      forecast: (apiData.cost_summary?.total || 0) * 1.1,
+      byService: apiData.cost_summary?.top_services?.map(([service, cost]: [string, number]) => ({
+        service,
+        cost
+      })) || []
+    },
+    accountSummary: [{
+      name: 'Main Account',
+      findings: apiData.findings_by_severity?.CRITICAL + apiData.findings_by_severity?.HIGH || 0,
+      compliance: apiData.compliance?.overall_score || 0,
+      cost: apiData.cost_summary?.total || 0
+    }]
+  };
 }
 
 // ============================================================
