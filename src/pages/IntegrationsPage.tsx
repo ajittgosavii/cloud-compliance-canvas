@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   fetchGitHubAlerts,
   fetchSnowflakeStatus,
   fetchCloudabilityData,
   createJiraTicket,
-  sendSlackMessage,
-  createServiceNowIncident,
-  triggerPagerDuty
+  sendSlackMessage
 } from '../services/api';
 
 type TabType = 'jira' | 'servicenow' | 'slack' | 'pagerduty' | 'github' | 'snowflake' | 'cloudability';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchDashboard, fetchHealth } from '../services/api';
 
 export default function DashboardPage() {
