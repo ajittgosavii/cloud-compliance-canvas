@@ -58,6 +58,14 @@ export async function fetchDashboardData(demoMode: boolean) {
   const response = await apiClient.get('/dashboard');
   const apiData = response.data;
   
+  // Generate sample dates for trend data
+  const trendDates = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    trendDates.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  }
+  
   // Transform API response to match frontend expected structure
   return {
     keyMetrics: apiData.key_metrics?.map((m: any) => ({
@@ -74,15 +82,20 @@ export async function fetchDashboardData(demoMode: boolean) {
       informational: apiData.findings_by_severity?.INFORMATIONAL || 0
     },
     trendData: {
-      dates: apiData.cost_summary?.top_services?.map((_: any, i: number) => `Day ${i + 1}`) || [],
-      findings: apiData.cost_summary?.top_services?.map(() => Math.floor(Math.random() * 50)) || [],
-      compliance: apiData.cost_summary?.top_services?.map(() => Math.floor(Math.random() * 100)) || []
+      dates: trendDates,
+      critical: trendDates.map(() => Math.floor(Math.random() * 5) + (apiData.findings_by_severity?.CRITICAL || 0)),
+      high: trendDates.map(() => Math.floor(Math.random() * 10) + (apiData.findings_by_severity?.HIGH || 0)),
+      medium: trendDates.map(() => Math.floor(Math.random() * 20) + (apiData.findings_by_severity?.MEDIUM || 0))
     },
-    complianceFrameworks: Object.entries(apiData.compliance?.frameworks || {}).map(([name, score]) => ({
-      name,
-      score: score as number,
-      status: (score as number) >= 80 ? 'Compliant' : 'Non-Compliant'
-    })),
+    complianceFrameworks: apiData.compliance?.frameworks 
+      ? Object.entries(apiData.compliance.frameworks).map(([name, score]) => ({
+          name,
+          score: score as number,
+          status: (score as number) >= 80 ? 'Compliant' : 'Non-Compliant'
+        }))
+      : [
+          { name: 'AWS Config', score: apiData.compliance?.overall_score || 0, status: (apiData.compliance?.overall_score || 0) >= 80 ? 'Compliant' : 'Non-Compliant' }
+        ],
     recentCriticalIssues: apiData.recent_findings?.filter((f: any) => 
       f.severity === 'CRITICAL' || f.severity === 'HIGH'
     ).slice(0, 5).map((f: any) => ({
@@ -94,8 +107,8 @@ export async function fetchDashboardData(demoMode: boolean) {
     })) || [],
     costData: {
       currentMonth: apiData.cost_summary?.total || 0,
-      previousMonth: (apiData.cost_summary?.total || 0) * 0.9,
-      forecast: (apiData.cost_summary?.total || 0) * 1.1,
+      forecasted: (apiData.cost_summary?.total || 0) * 1.1,
+      budget: (apiData.cost_summary?.total || 0) * 1.5,
       byService: apiData.cost_summary?.top_services?.map(([service, cost]: [string, number]) => ({
         service,
         cost
@@ -103,7 +116,7 @@ export async function fetchDashboardData(demoMode: boolean) {
     },
     accountSummary: [{
       name: 'Main Account',
-      findings: apiData.findings_by_severity?.CRITICAL + apiData.findings_by_severity?.HIGH || 0,
+      findings: (apiData.findings_by_severity?.CRITICAL || 0) + (apiData.findings_by_severity?.HIGH || 0),
       compliance: apiData.compliance?.overall_score || 0,
       cost: apiData.cost_summary?.total || 0
     }]
